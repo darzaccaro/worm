@@ -19,6 +19,8 @@ typedef double f64;
 
 #define nil 0
 
+#define ARRAY_COUNT(array) (sizeof(array) / sizeof(array[0]))
+
 #if 0
 
 
@@ -124,16 +126,16 @@ void* DynamicArrayAt(DynamicArray array, u64 index) {
 
 #include <SDL.h>
 
-#define TILE_SIZE     64
-#define TILES_WIDE    16
-#define TILES_TALL    12
+#define TILE_SIZE     32
+#define TILES_WIDE    32
+#define TILES_TALL    24
 #define WINDOW_WIDTH  TILES_WIDE * TILE_SIZE
 #define WINDOW_HEIGHT TILES_TALL * TILE_SIZE
 #define FRAMES_PER_SECOND 60
 #define MS_PER_FRAME ((1.f/60.f) * 1000.f)
 #define MS_PER_UPDATE MS_PER_FRAME * 10.f
+#define MAX_APPLES 16
 
-static SDL_Renderer* renderer;
 
 typedef struct {
     f32 x;
@@ -155,10 +157,19 @@ V2f V2fMul(V2f a, f32 b) {
 }
 
 typedef struct {
+    V2f position;
+    bool isActive;
+} Apple;
+
+typedef struct {
     V2f* positions;
     V2f direction;
     u64 length;
 } Snake;
+
+static SDL_Renderer* renderer;
+static Apple apples[MAX_APPLES];
+static Snake snake;
 
 Snake SnakeCreate(V2f position, V2f direction, u64 length) {
     Snake snake = { 0 };
@@ -166,7 +177,6 @@ Snake SnakeCreate(V2f position, V2f direction, u64 length) {
     assert(snake.positions);
     snake.length = length;
     snake.direction = direction;
-
     snake.positions[0] = position;
     for (u64 i = 1; i < length; i++) {
         V2f pos = V2fAddV2f(position, V2fMul(direction, i));
@@ -190,17 +200,57 @@ void SnakeUpdate(Snake snake) {
 void SnakeDraw(Snake snake) {
     SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
     for (u64 i = 0; i < snake.length; i++) {
-        SDL_Rect rect = {
+        SDL_FRect rect = {
             .x = snake.positions[i].x * TILE_SIZE,
             .y = snake.positions[i].y * TILE_SIZE,
             .w = TILE_SIZE,
             .h = TILE_SIZE
         };
-        SDL_RenderFillRect(renderer, &rect);
+        SDL_RenderFillRectF(renderer, &rect);
     }
 }
 
+void SpawnApple() {
+    for (u64 i = 0; i < ARRAY_COUNT(apples); i++) {
+        if (apples[i].isActive) continue;
+        V2f pos = (V2f){
+            .x = rand() % TILES_WIDE,
+            .y = rand() % TILES_TALL,
+        };
+        // TODO make sure snake is not already here
+        /*
+        for (u64 i = 0; i < snake.length; i++) {
+            if (V2fEqV2f(pos, snake.positions[i])) {
+
+            }
+        }
+        */
+        apples[i].position = pos;
+        apples[i].isActive = true;
+        break;
+    }
+}
+
+void DrawApples() {
+    SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
+    for (u64 i = 0; i < ARRAY_COUNT(apples); i++) {
+        if (!apples[i].isActive) continue;
+        SDL_FRect rect = {
+            .x = apples[i].position.x * TILE_SIZE,
+            .y = apples[i].position.y * TILE_SIZE,
+            .w = TILE_SIZE,
+            .h = TILE_SIZE,
+        };
+        SDL_RenderFillRectF(renderer, &rect);
+    }
+}
+
+
+
+
 int main(int argc, char* args[]) {
+    srand((u32)time(nil));
+
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
         assert(false);
     }
@@ -210,7 +260,7 @@ int main(int argc, char* args[]) {
     renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
     assert(renderer);
 
-    Snake snake = SnakeCreate((V2f) { 1, 2 }, (V2f) { 1, 0 }, 4);
+    snake = SnakeCreate((V2f) { 1, 2 }, (V2f) { 1, 0 }, 4);
 
     bool isRunning = true;
     u32 startTime = SDL_GetTicks();
@@ -265,10 +315,13 @@ int main(int argc, char* args[]) {
 
         if (SDL_GetTicks() - updateTime >= MS_PER_UPDATE) {
             SnakeUpdate(snake);
+            SpawnApple();
             updateTime = SDL_GetTicks();
         }
 
+        DrawApples();
         SnakeDraw(snake);
+    
         SDL_RenderPresent(renderer);
         startTime = SDL_GetTicks();
     }
