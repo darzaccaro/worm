@@ -147,28 +147,40 @@ V2f V2fAddV2f(V2f a, V2f b) {
     };
 }
 
-typedef struct {
-    V2f position, direction;
-} Segment;
+V2f V2fMul(V2f a, f32 b) {
+    return (V2f) {
+        .x = a.x * b,
+        .y = a.y * b,
+    };
+}
 
 typedef struct {
     V2f* positions;
     V2f direction;
-    u64 positionsCount;
+    u64 length;
 } Snake;
 
-Snake SnakeCreate(V2f position, V2f direction) {
+Snake SnakeCreate(V2f position, V2f direction, u64 length) {
     Snake snake = { 0 };
-    snake.positions = malloc(sizeof(Segment));
+    snake.positions = malloc(sizeof(V2f) * length);
     assert(snake.positions);
-    snake.positionsCount = 1;
-    *(snake.positions) = position;
+    snake.length = length;
+    snake.direction = direction;
+
+    snake.positions[0] = position;
+    for (u64 i = 1; i < length; i++) {
+        V2f pos = V2fAddV2f(position, V2fMul(direction, i));
+        snake.positions[i] = (V2f){
+            .x = pos.x,
+            .y = pos.y,
+        };
+    }
     return snake;
 }
 
 void SnakeUpdate(Snake snake) {
     // body
-    for (u64 i = 1; i < snake.positionsCount; i++) {
+    for (u64 i = snake.length - 1; i > 0; i--) {
         snake.positions[i] = snake.positions[i - 1];
     }
     // head
@@ -177,10 +189,10 @@ void SnakeUpdate(Snake snake) {
 
 void SnakeDraw(Snake snake) {
     SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
-    for (u64 i = 0; i < snake.positionsCount; i++) {
+    for (u64 i = 0; i < snake.length; i++) {
         SDL_Rect rect = {
-            .x = (i32)snake.positions[i].x * TILE_SIZE,
-            .y = (i32)snake.positions[i].y * TILE_SIZE,
+            .x = snake.positions[i].x * TILE_SIZE,
+            .y = snake.positions[i].y * TILE_SIZE,
             .w = TILE_SIZE,
             .h = TILE_SIZE
         };
@@ -198,9 +210,7 @@ int main(int argc, char* args[]) {
     renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
     assert(renderer);
 
-    Snake snake = SnakeCreate((V2f) { 1, 2 }, (V2f) { 1, 0 });
-
-    
+    Snake snake = SnakeCreate((V2f) { 1, 2 }, (V2f) { 1, 0 }, 4);
 
     bool isRunning = true;
     u32 startTime = SDL_GetTicks();
@@ -248,8 +258,6 @@ int main(int argc, char* args[]) {
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         SDL_RenderClear(renderer);
 
-
-
         // Update and render
         while (SDL_GetTicks() - startTime < MS_PER_FRAME) {
             continue;
@@ -259,10 +267,8 @@ int main(int argc, char* args[]) {
             SnakeUpdate(snake);
             updateTime = SDL_GetTicks();
         }
+
         SnakeDraw(snake);
-
-
-
         SDL_RenderPresent(renderer);
         startTime = SDL_GetTicks();
     }
