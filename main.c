@@ -135,7 +135,7 @@ void* DynamicArrayAt(DynamicArray array, u64 index) {
 #define MS_PER_FRAME ((1.f/60.f) * 1000.f)
 #define MS_PER_UPDATE MS_PER_FRAME * 10.f
 #define MAX_APPLES 16
-
+#define MAX_INPUT_QUEUE_SIZE 3
 
 typedef struct {
     f32 x;
@@ -167,9 +167,36 @@ typedef struct {
     u64 length;
 } Snake;
 
+
+typedef struct {
+    SDL_KeyCode inputs[MAX_INPUT_QUEUE_SIZE];
+} InputQueue;
+
+SDL_KeyCode InputQueuePush(InputQueue* iq, SDL_KeyCode key) {
+    for (u64 i = 0; i < MAX_INPUT_QUEUE_SIZE; i++) {
+        if (iq->inputs[i] == 0) {
+            iq->inputs[i] = key;
+            break;
+        }
+    }
+}
+
+SDL_KeyCode InputQueuePop(InputQueue* iq) {
+    SDL_KeyCode key = iq->inputs[0];
+    for (u64 i = 0; i < MAX_INPUT_QUEUE_SIZE; i++) {
+        if (i == MAX_INPUT_QUEUE_SIZE - 1) {
+            iq->inputs[i] = 0;
+        } else {
+            iq->inputs[i] = iq->inputs[i + 1];
+        }
+    }
+    return key;
+}
+
 static SDL_Renderer* renderer;
 static Apple apples[MAX_APPLES];
 static Snake snake;
+static InputQueue inputQueue;
 
 Snake SnakeCreate(V2f position, V2f direction, u64 length) {
     Snake snake = { 0 };
@@ -278,27 +305,9 @@ int main(int argc, char* args[]) {
                     isRunning = false;
                     break;
                 }
-                case SDLK_LEFT: {
+                case SDLK_LEFT: case SDLK_RIGHT: case SDLK_UP: case SDLK_DOWN: {
                     if (!event.key.repeat) {
-                        snake.direction = (V2f){ .x = -1.f, .y = 0.f };
-                    }
-                    break;
-                }
-                case SDLK_RIGHT: {
-                    if (!event.key.repeat) {
-                        snake.direction = (V2f){ .x = 1.f, .y = 0.f };
-                    }
-                    break;
-                }
-                case SDLK_UP: {
-                    if (!event.key.repeat) {
-                        snake.direction = (V2f){ .x = 0.f, .y = -1.f };
-                    }
-                    break;
-                }
-                case SDLK_DOWN: {
-                    if (!event.key.repeat) {
-                        snake.direction = (V2f){ .x = 0.f, .y = 1.f };
+                        InputQueuePush(&inputQueue, event.key.keysym.sym);
                     }
                     break;
                 }
@@ -314,6 +323,21 @@ int main(int argc, char* args[]) {
         }
 
         if (SDL_GetTicks() - updateTime >= MS_PER_UPDATE) {
+            SDL_KeyCode key = InputQueuePop(&inputQueue);
+            if (key == SDLK_LEFT) {
+                snake.direction = (V2f){ -1, 0 };
+            }
+            if (key == SDLK_RIGHT) {
+                snake.direction = (V2f){ 1, 0 };
+            }
+            if (key == SDLK_UP) {
+                snake.direction = (V2f){ 0, -1 };
+            }
+            if (key == SDLK_DOWN) {
+                snake.direction = (V2f){ 0, 1 };
+            }
+            // TODO handle this key this frame.
+
             SnakeUpdate(snake);
             SpawnApple();
             updateTime = SDL_GetTicks();
