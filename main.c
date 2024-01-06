@@ -285,11 +285,7 @@ Snake SnakeCreate(V2f position, V2f direction, u64 length) {
     snake.directions[0] = direction;
     snake.positions[0] = position;
     for (u64 i = 1; i < length; i++) {
-        V2f pos = V2fAddV2f(position, V2fMul(direction, i));
-        snake.positions[i] = (V2f){
-            .x = pos.x,
-            .y = pos.y,
-        };
+        snake.positions[i] = position;
         snake.directions[i] = direction;
     }
     return snake;
@@ -479,7 +475,7 @@ int main(int argc, char* args[]) {
 
     ScoreTextUpdate(scoreText, score);
 
-    snake = SnakeCreate((V2f) { 1, 2 }, (V2f) { 1, 0 }, 4);
+    snake = SnakeCreate((V2f) { 4, 2 }, (V2f) { 1, 0 }, 4);
 
     bool isRunning = true;
     u32 startTime = SDL_GetTicks();
@@ -511,8 +507,18 @@ int main(int argc, char* args[]) {
                 }
             }
         }
-        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+        // clear to white
+        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
         SDL_RenderClear(renderer);
+        // draw grid
+        SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
+        for (i32 y = 0; y < TILES_TALL; y++) {
+            SDL_RenderDrawLine(renderer, 0, y * TILE_SIZE, TILES_WIDE * TILE_SIZE, y * TILE_SIZE);
+
+            for (i32 x = 0; x < TILES_WIDE; x++) {
+                SDL_RenderDrawLine(renderer, x * TILE_SIZE, 0, x * TILE_SIZE, TILES_TALL * TILE_SIZE);
+            }
+        }
 
         // Update and render
         while (SDL_GetTicks() - startTime < MS_PER_FRAME) {
@@ -593,7 +599,7 @@ int main(int argc, char* args[]) {
         SnakeDraw(snake);
 
         // draw text
-        SDL_Surface* textSurface = TTF_RenderText_Blended(font, scoreText, (SDL_Color) {255, 255, 255, 255});
+        SDL_Surface* textSurface = TTF_RenderText_Blended(font, scoreText, (SDL_Color) {0, 0, 0, 255});
         assert(textSurface);
         SDL_Texture* textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
         assert(textTexture);
