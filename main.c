@@ -166,6 +166,19 @@ bool V2fEqV2f(V2f a, V2f b) {
     return a.x == b.x && a.y == b.y;
 }
 
+V2f V2fSubV2f(V2f a, V2f b) {
+    return (V2f) { a.x - b.x, a.y - b.y };
+}
+
+f32 V2fMagnitude(V2f v) {
+    return sqrtf(v.x * v.x + v.y * v.y);
+}
+
+V2f V2fNormalize(V2f v) {
+    f32 magnitude = V2fMagnitude(v);
+    return (V2f) {v.x / magnitude, v.y / magnitude};
+}
+
 typedef struct {
     V2f position;
     bool isActive;
@@ -173,7 +186,7 @@ typedef struct {
 
 typedef struct {
     V2f* positions;
-    V2f direction;
+    V2f* directions;
     u64 length;
 } Snake;
 
@@ -234,13 +247,13 @@ static Snake snake;
 static InputQueue inputQueue;
 static u64 score;
 static char* scoreText[MAX_SCORE_TEXT];
+static bool onlyUpdateOnKeyPress = false;
 
-void DrawSprite(SpriteSheet sheet, SpriteName sprite, u64 x, u64 y) {
+void DrawSprite(SpriteSheet sheet, SpriteName sprite, u64 x, u64 y, f64 angle) {
     i32 tilesWide = sheet.width / sheet.tileSize;
     i32 tilesHigh = sheet.height / sheet.tileSize;
     i32 sy = (sprite / tilesWide);
     i32 sx = sprite % tilesWide;
-
 
     SDL_Rect source = (SDL_Rect){
         .x = sx * sheet.tileSize,
@@ -254,7 +267,7 @@ void DrawSprite(SpriteSheet sheet, SpriteName sprite, u64 x, u64 y) {
         .w = TILE_SIZE,
         .h = TILE_SIZE,
     };
-    SDL_RenderCopy(renderer, spriteSheet.texture, &source, &destination);
+    SDL_RenderCopyEx(renderer, spriteSheet.texture, &source, &destination, angle, nil, nil);
 }
 
 
@@ -266,8 +279,10 @@ Snake SnakeCreate(V2f position, V2f direction, u64 length) {
     Snake snake = { 0 };
     snake.positions = malloc(sizeof(V2f) * length);
     assert(snake.positions);
+    snake.directions = malloc(sizeof(V2f) * length);
+    assert(snake.directions);
     snake.length = length;
-    snake.direction = direction;
+    snake.directions[0] = direction;
     snake.positions[0] = position;
     for (u64 i = 1; i < length; i++) {
         V2f pos = V2fAddV2f(position, V2fMul(direction, i));
@@ -275,29 +290,115 @@ Snake SnakeCreate(V2f position, V2f direction, u64 length) {
             .x = pos.x,
             .y = pos.y,
         };
+        snake.directions[i] = direction;
     }
     return snake;
 }
 
-void SnakeUpdate(Snake snake) {
+void SnakeUpdate(Snake snake, V2f direction) {
     // body
     for (u64 i = snake.length - 1; i > 0; i--) {
         snake.positions[i] = snake.positions[i - 1];
+        snake.directions[i] = snake.directions[i - 1];
     }
     // head
-    snake.positions[0] = V2fAddV2f(snake.positions[0], snake.direction);
+    snake.directions[0] = direction;
+    snake.positions[0] = V2fAddV2f(snake.positions[0], snake.directions[0]);
 }
 
 void SnakeDraw(Snake snake) {
     SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
+
     for (u64 i = 0; i < snake.length; i++) {
-        SDL_FRect rect = {
-            .x = snake.positions[i].x * TILE_SIZE,
-            .y = snake.positions[i].y * TILE_SIZE,
-            .w = TILE_SIZE,
-            .h = TILE_SIZE
-        };
-        SDL_RenderFillRectF(renderer, &rect);
+        SpriteName sprite = 0;
+        f64 angle = 0;
+        V2f direction = { 0 };
+        if (i == 0) {
+            direction = snake.directions[i];
+            sprite = SN_HEAD;
+        }
+        else if (i == snake.length - 1) {
+            direction = snake.directions[i - 1];
+            sprite = SN_TAIL;
+        }
+        else {
+            V2f pa = snake.positions[i - 1];
+            V2f pb = snake.positions[i];
+            V2f pc = snake.positions[i + 1];
+            V2f diffA = V2fNormalize(V2fSubV2f(pb, pa));
+            V2f diffC = V2fNormalize(V2fSubV2f(pb, pc));
+            if (V2fEqV2f(diffA, (V2f) { 1, 0 }) && V2fEqV2f(diffC, (V2f) { -1, 0 })
+                || V2fEqV2f(diffA, (V2f) { -1, 0 }) && V2fEqV2f(diffC, (V2f) { 1, 0 })
+                || V2fEqV2f(diffA, (V2f) { -1, 0 }) && V2fEqV2f(diffC, (V2f) { -1, 0 })
+                || V2fEqV2f(diffA, (V2f) { 0, -1 }) && V2fEqV2f(diffC, (V2f) { 0, 1 })
+                || V2fEqV2f(diffA, (V2f) { 0, 1 }) && V2fEqV2f(diffC, (V2f) { 0, -1 })
+
+                ) {
+                if (i % 2 == 0) {
+                    sprite = SN_DARK_STRAIGHT;
+                }
+                else {
+                    sprite = SN_LIGHT_STRAIGHT;
+                }
+            } else if (
+              V2fEqV2f(diffA, (V2f) { 1, 0 }) && V2fEqV2f(diffC, (V2f) { 0, 1 })
+                || V2fEqV2f(diffA, (V2f) { 0, 1 }) && V2fEqV2f(diffC, (V2f) { 1, 0 })
+                ) {
+                if (i % 2 == 0) {
+                    sprite = SN_DARK_BOTTOM_RIGHT;
+                }
+                else {
+                    sprite = SN_LIGHT_BOTTOM_RIGHT;
+                }
+            }
+            else if (V2fEqV2f(diffA, (V2f) { 0, -1 }) && V2fEqV2f(diffC, (V2f) { 1, 0 })
+                || V2fEqV2f(diffA, (V2f) { 1, 0 }) && V2fEqV2f(diffC, (V2f) { 0, -1 })
+           
+                ) {
+                if (i % 2 == 0) {
+                    sprite = SN_DARK_TOP_RIGHT;
+                }
+                else {
+                    sprite = SN_LIGHT_TOP_RIGHT;
+                }
+            }
+            else if (V2fEqV2f(diffA, (V2f) { 0, 1 }) && V2fEqV2f(diffC, (V2f) { -1, 0 })
+                || V2fEqV2f(diffA, (V2f) { -1, 0 }) && V2fEqV2f(diffC, (V2f) { 0, 1 })
+                ) {
+                if (i % 2 == 0) {
+                    sprite = SN_DARK_BOTTOM_LEFT;
+                }
+                else {
+                    sprite = SN_LIGHT_BOTTOM_LEFT;
+                }
+            }
+            else if (V2fEqV2f(diffA, (V2f) { -1, 0 }) && V2fEqV2f(diffC, (V2f) { 0, -1 })
+                || V2fEqV2f(diffA, (V2f) { 0, -1 }) && V2fEqV2f(diffC, (V2f) { -1, 0 })) {
+                if (i % 2 == 0) {
+                    sprite = SN_DARK_TOP_LEFT;
+                }
+                else {
+                    sprite = SN_LIGHT_TOP_LEFT;
+                }
+            }
+            else {
+                sprite = SN_APPLE;
+            }
+            
+        }
+        if (direction.x == 1) {
+            angle = 90;
+        }
+        if (direction.x == -1) {
+            angle = -90;
+        }
+        if (direction.y == -1) {
+            angle = 0;
+        }
+        if (direction.y == 1) {
+            angle = 180;
+        }
+        DrawSprite(spriteSheet, sprite, snake.positions[i].x, snake.positions[i].y, angle);
     }
 }
 
@@ -320,7 +421,7 @@ void DrawApples() {
     SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
     for (u64 i = 0; i < ARRAY_COUNT(apples); i++) {
         if (!apples[i].isActive) continue;
-        DrawSprite(spriteSheet, SN_APPLE, apples[i].position.x, apples[i].position.y);
+        DrawSprite(spriteSheet, SN_APPLE, apples[i].position.x, apples[i].position.y, 0);
     }
 }
 
@@ -386,6 +487,7 @@ int main(int argc, char* args[]) {
     u32 appleTime = SDL_GetTicks();
     u64 prevScore = score;
     bool ateLastFrame = false;
+    bool wasKeyPressed = false;
     while (isRunning) {
         SDL_Event event;
         while (SDL_PollEvent(&event) != 0) {
@@ -402,6 +504,7 @@ int main(int argc, char* args[]) {
                 case SDLK_LEFT: case SDLK_RIGHT: case SDLK_UP: case SDLK_DOWN: {
                     if (!event.key.repeat) {
                         InputQueuePush(&inputQueue, event.key.keysym.sym);
+                        wasKeyPressed = true;
                     }
                     break;
                 }
@@ -416,19 +519,21 @@ int main(int argc, char* args[]) {
             continue;
         }
 
-        if (SDL_GetTicks() - updateTime >= MS_PER_UPDATE) {
+        if (onlyUpdateOnKeyPress && wasKeyPressed) {
+            wasKeyPressed = false;
             SDL_KeyCode key = InputQueuePop(&inputQueue);
+            V2f direction = snake.directions[0];
             if (key == SDLK_LEFT) {
-                snake.direction = (V2f){ -1, 0 };
+                direction = (V2f){ -1, 0 };
             }
             if (key == SDLK_RIGHT) {
-                snake.direction = (V2f){ 1, 0 };
+                direction = (V2f){ 1, 0 };
             }
             if (key == SDLK_UP) {
-                snake.direction = (V2f){ 0, -1 };
+                direction = (V2f){ 0, -1 };
             }
             if (key == SDLK_DOWN) {
-                snake.direction = (V2f){ 0, 1 };
+                direction = (V2f){ 0, 1 };
             }
             // TODO handle this key this frame.
 
@@ -436,7 +541,31 @@ int main(int argc, char* args[]) {
                 snake.length++;
                 ateLastFrame = false;
             }
-            SnakeUpdate(snake);
+            SnakeUpdate(snake, direction);
+        }
+
+        if (!onlyUpdateOnKeyPress && SDL_GetTicks() - updateTime >= MS_PER_UPDATE) {
+            SDL_KeyCode key = InputQueuePop(&inputQueue);
+            V2f direction = snake.directions[0];
+            if (key == SDLK_LEFT) {
+                direction = (V2f){ -1, 0 };
+            }
+            if (key == SDLK_RIGHT) {
+                direction = (V2f){ 1, 0 };
+            }
+            if (key == SDLK_UP) {
+                direction = (V2f){ 0, -1 };
+            }
+            if (key == SDLK_DOWN) {
+                direction = (V2f){ 0, 1 };
+            }
+            // TODO handle this key this frame.
+
+            if (ateLastFrame) {
+                snake.length++;
+                ateLastFrame = false;
+            }
+            SnakeUpdate(snake, direction);
             // handle collisions
             for (u64 i = 0; i < MAX_APPLES; i++) {
                 if (!apples[i].isActive) continue;
@@ -480,8 +609,9 @@ int main(int argc, char* args[]) {
         SDL_RenderCopy(renderer, textTexture, nil, &textRect);
 
         SDL_RenderPresent(renderer);
-        
-        SDL_DestroyTexture(textTexture);
+        if (textTexture) {
+            SDL_DestroyTexture(textTexture);
+        }
         startTime = SDL_GetTicks();
     }
 
