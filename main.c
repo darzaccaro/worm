@@ -23,109 +23,6 @@ typedef const char* cstring;
 
 #define ARRAY_COUNT(array) (sizeof(array) / sizeof(array[0]))
 
-#if 0
-
-
-typedef struct FixedArray {
-    void* elements;
-    u64 capacity;
-    u64 count;
-    u64 elementSize;
-} FixedArray;
-
-
-FixedArray _FixedArrayCreate(u64 elementSize, u64 capacity) {
-    FixedArray r = {0};
-    r.elements = calloc(capacity, elementSize);
-    assert(r.elements);
-    r.capacity = capacity;
-    r.elementSize = elementSize;
-    return r;
-}
-
-#define FixedArrayCreate(type, capacity) _FixedArrayCreate(sizeof(type), (capacity))
-
-void _FixedArrayAppend(FixedArray* array, void* element, u64 elementSize) {
-    assert(elementSize == array->elementSize);
-    assert(array->capacity > array->count + 1);
-    u8* p = array->elements;
-    p += elementSize * (array->count);
-    *p = element;
-    array->count++;
-}
-#define FixedArrayAppend(array, element) _FixedArrayAppend((array), (typeof(element))(element), sizeof(element))
-
-void* FixedArrayAt(FixedArray* array, u64 index) {
-    assert(index < array->count);
-    u8* p = array->elements;
-    p += array->elementSize * index;
-    return (void*) p;
-}
-
-#define FixedArray(type, capacity) FixedArray_##type
-
-// TODO declare generics like this, then use _Generic to dispatch...
-// your handmade talk can be on this!
-#define DeclareFixedArray(type) \
-    typedef struct { \
-        u64 count; \
-        u64 capacity; \
-        type* elements; \
-    } FixedArray_##type; \
-    FixedArray_##type FixedArrayCreate_##type(u64 capacity) { \
-        FixedArray_##type r = {0}; \
-        r.elements = calloc(capacity, sizeof(type)); \
-        assert(r.elements); \
-        r.capacity = capacity; \
-        return r; \
-    } \
-    void FixedArrayAppend_##type(FixedArray_##type* array, type element) { \
-        assert(array->capacity > array->count + 1); \
-        array->elements[array->count++] = element; \
-    } \
-
-#define FixedArrayCreate(type, capacity) FixedArrayCreate_##type(capacity)
-#define FixedArrayAppend(type, array, element) FixedArrayAppend_##type(array, element)
-#define FixedArray(type) FixedArray_##type
-
-DeclareFixedArray(u8);
-
-
-// TODO make sure these structs are tightly packed
-typedef struct {
-    u64 capacity;
-    u64 count;
-    u64 stride;
-    void* data;
-} DynamicArray;
-
-DynamicArray DynamicArrayCreate(u64 capacity, u64 stride) {
-    DynamicArray array = { 0 };//malloc(sizeof(header) + capacity * stride);
-    array.capacity = capacity;
-    array.stride = stride;
-    array.count = 0;
-    array.data = malloc(capacity * stride);
-    assert(array.data);
-    return array;
-}
-
-void DynamicArrayAppend(DynamicArray* array, void* element) {
-    assert(array->capacity + 1 > array->count); // TODO realloc
-    u8* p = array->data;
-    p += array->count * array->stride;
-    *p = element;
-    array->count++;
-}
-
-void* DynamicArrayAt(DynamicArray array, u64 index) {
-    assert(index < array.count);
-    u8* p = array.data;
-    p += array.count * array.stride;
-    return *p;
-}
-
-#endif
-
 #include <SDL.h>
 #include <SDL_ttf.h>
 #include <SDL_image.h>
@@ -218,19 +115,14 @@ SDL_KeyCode InputQueuePop(InputQueue* iq) {
 }
 
 typedef enum {
-    SN_DARK_STRAIGHT,
-    SN_DARK_TOP_LEFT,
-    SN_DARK_TOP_RIGHT,
+    SN_STRAIGHT,
+    SN_TOP_LEFT,
+    SN_TOP_RIGHT,
     SN_HEAD,
     SN_APPLE,
-    SN_DARK_BOTTOM_LEFT,
-    SN_DARK_BOTTOM_RIGHT,
+    SN_BOTTOM_LEFT,
+    SN_BOTTOM_RIGHT,
     SN_TAIL,
-    SN_LIGHT_STRAIGHT,
-    SN_LIGHT_TOP_LEFT,
-    SN_LIGHT_TOP_RIGHT,
-    SN_LIGHT_BOTTOM_LEFT,
-    SN_LIGHT_BOTTOM_RIGHT,
 } SpriteName;
 
 typedef struct {
@@ -331,52 +223,30 @@ void SnakeDraw(Snake snake) {
                 || V2fEqV2f(diffA, (V2f) { 0, 1 }) && V2fEqV2f(diffC, (V2f) { 0, -1 })
 
                 ) {
-                if (i % 2 == 0) {
-                    sprite = SN_DARK_STRAIGHT;
+                if (diffA.x) {
+                    angle = 90;
                 }
-                else {
-                    sprite = SN_LIGHT_STRAIGHT;
-                }
+                    sprite = SN_STRAIGHT;
             } else if (
               V2fEqV2f(diffA, (V2f) { 1, 0 }) && V2fEqV2f(diffC, (V2f) { 0, 1 })
                 || V2fEqV2f(diffA, (V2f) { 0, 1 }) && V2fEqV2f(diffC, (V2f) { 1, 0 })
                 ) {
-                if (i % 2 == 0) {
-                    sprite = SN_DARK_BOTTOM_RIGHT;
-                }
-                else {
-                    sprite = SN_LIGHT_BOTTOM_RIGHT;
-                }
+                    sprite = SN_BOTTOM_RIGHT;
             }
             else if (V2fEqV2f(diffA, (V2f) { 0, -1 }) && V2fEqV2f(diffC, (V2f) { 1, 0 })
                 || V2fEqV2f(diffA, (V2f) { 1, 0 }) && V2fEqV2f(diffC, (V2f) { 0, -1 })
            
                 ) {
-                if (i % 2 == 0) {
-                    sprite = SN_DARK_TOP_RIGHT;
-                }
-                else {
-                    sprite = SN_LIGHT_TOP_RIGHT;
-                }
+                    sprite = SN_TOP_RIGHT;
             }
             else if (V2fEqV2f(diffA, (V2f) { 0, 1 }) && V2fEqV2f(diffC, (V2f) { -1, 0 })
                 || V2fEqV2f(diffA, (V2f) { -1, 0 }) && V2fEqV2f(diffC, (V2f) { 0, 1 })
                 ) {
-                if (i % 2 == 0) {
-                    sprite = SN_DARK_BOTTOM_LEFT;
-                }
-                else {
-                    sprite = SN_LIGHT_BOTTOM_LEFT;
-                }
+                    sprite = SN_BOTTOM_LEFT;
             }
             else if (V2fEqV2f(diffA, (V2f) { -1, 0 }) && V2fEqV2f(diffC, (V2f) { 0, -1 })
                 || V2fEqV2f(diffA, (V2f) { 0, -1 }) && V2fEqV2f(diffC, (V2f) { -1, 0 })) {
-                if (i % 2 == 0) {
-                    sprite = SN_DARK_TOP_LEFT;
-                }
-                else {
-                    sprite = SN_LIGHT_TOP_LEFT;
-                }
+                    sprite = SN_TOP_LEFT;
             }
             else {
                 sprite = SN_APPLE;
@@ -444,7 +314,7 @@ int main(int argc, char* args[]) {
     renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
     assert(renderer);
     
-    font = TTF_OpenFont("assets/fonts/Roboto-Regular.ttf", 64);
+    font = TTF_OpenFont("assets/fonts/Roboto-Regular.ttf", 48);
     assert(font);
 
 
@@ -509,10 +379,10 @@ int main(int argc, char* args[]) {
             }
         }
         // clear to white
-        SDL_SetRenderDrawColor(renderer, 110, 126, 133, 255);
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         SDL_RenderClear(renderer);
         // draw grid
-        SDL_SetRenderDrawColor(renderer, 120, 136, 143, 255);
+        SDL_SetRenderDrawColor(renderer, 25, 25, 25, 255);
         for (i32 y = 0; y < TILES_TALL; y++) {
             SDL_RenderDrawLine(renderer, 0, y * TILE_SIZE, TILES_WIDE * TILE_SIZE, y * TILE_SIZE);
 
@@ -600,7 +470,7 @@ int main(int argc, char* args[]) {
         SnakeDraw(snake);
 
         // draw text
-        SDL_Surface* textSurface = TTF_RenderText_Blended(font, scoreText, (SDL_Color) {0, 0, 0, 255});
+        SDL_Surface* textSurface = TTF_RenderText_Blended(font, scoreText, (SDL_Color) {255, 255, 255, 255});
         assert(textSurface);
         SDL_Texture* textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
         assert(textTexture);
