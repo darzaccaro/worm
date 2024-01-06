@@ -17,6 +17,8 @@ typedef int64_t i64;
 typedef float f32;
 typedef double f64;
 
+typedef const char* cstring;
+
 #define nil 0
 
 #define ARRAY_COUNT(array) (sizeof(array) / sizeof(array[0]))
@@ -125,6 +127,7 @@ void* DynamicArrayAt(DynamicArray array, u64 index) {
 #endif
 
 #include <SDL.h>
+#include <SDL_ttf.h>
 
 #define TILE_SIZE     32
 #define TILES_WIDE    32
@@ -136,6 +139,7 @@ void* DynamicArrayAt(DynamicArray array, u64 index) {
 #define MS_PER_UPDATE MS_PER_FRAME * 10.f
 #define MAX_APPLES 16
 #define MAX_INPUT_QUEUE_SIZE 3
+#define MAX_SCORE_TEXT 128
 
 typedef struct {
     f32 x;
@@ -154,6 +158,10 @@ V2f V2fMul(V2f a, f32 b) {
         .x = a.x * b,
         .y = a.y * b,
     };
+}
+
+bool V2fEqV2f(V2f a, V2f b) {
+    return a.x == b.x && a.y == b.y;
 }
 
 typedef struct {
@@ -194,9 +202,16 @@ SDL_KeyCode InputQueuePop(InputQueue* iq) {
 }
 
 static SDL_Renderer* renderer;
+static TTF_Font* font;
 static Apple apples[MAX_APPLES];
 static Snake snake;
 static InputQueue inputQueue;
+static u64 score;
+static char* scoreText[MAX_SCORE_TEXT];
+
+void ScoreTextUpdate(char* scoreText, u64 score) {
+    sprintf_s(scoreText, MAX_SCORE_TEXT, "Score: %llu", score);
+}
 
 Snake SnakeCreate(V2f position, V2f direction, u64 length) {
     Snake snake = { 0 };
@@ -272,26 +287,46 @@ void DrawApples() {
     }
 }
 
-
-
-
 int main(int argc, char* args[]) {
     srand((u32)time(nil));
 
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
         assert(false);
     }
+    
+    if (TTF_Init() != 0) {
+        assert(false);
+    }
+
+    font = TTF_OpenFont("assets/fonts/Roboto-Regular.ttf", 64);
+    assert(font);
+
     SDL_Window* window = SDL_CreateWindow("Snake Rogue", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_SHOWN);
     assert(window);
+    
 
     renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
     assert(renderer);
+
+    i32 windowWidth, windowHeight, rendererWidth, rendererHeight;
+    SDL_GetWindowSize(window, &windowWidth, &windowHeight);
+    SDL_GetRendererOutputSize(renderer, &rendererWidth, &rendererHeight);
+    f32 scaleX = (f32)rendererWidth / (f32)windowWidth;
+    f32 scaleY = (f32)rendererHeight / (f32)windowHeight;
+    assert(scaleX == scaleY);
+        
+
+    SDL_RenderSetScale(renderer, scaleX, scaleY);
+
+    ScoreTextUpdate(scoreText, score);
 
     snake = SnakeCreate((V2f) { 1, 2 }, (V2f) { 1, 0 }, 4);
 
     bool isRunning = true;
     u32 startTime = SDL_GetTicks();
     u32 updateTime = SDL_GetTicks();
+    u64 prevScore = score;
+    bool ateLastFrame = false;
     while (isRunning) {
         SDL_Event event;
         while (SDL_PollEvent(&event) != 0) {
@@ -338,18 +373,53 @@ int main(int argc, char* args[]) {
             }
             // TODO handle this key this frame.
 
+            if (ateLastFrame) {
+                snake.length++;
+                ateLastFrame = false;
+            }
             SnakeUpdate(snake);
+            // handle collisions
+            for (u64 i = 0; i < MAX_APPLES; i++) {
+                if (!apples[i].isActive) continue;
+                if (V2fEqV2f(apples[i].position, snake.positions[0])) {
+                    score += 100;
+                    apples[i].isActive = false;
+                    ateLastFrame = true;
+                }
+            }
+            
             SpawnApple();
+
+            if (prevScore != score) {
+                ScoreTextUpdate(scoreText, score);
+                prevScore = score;
+            }
+            
             updateTime = SDL_GetTicks();
         }
 
         DrawApples();
         SnakeDraw(snake);
-    
+
+        SDL_Surface* textSurface = TTF_RenderText_Blended(font, scoreText, (SDL_Color) {255, 255, 255, 255});
+        assert(textSurface);
+        SDL_Texture* textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
+        assert(textTexture);
+        SDL_FreeSurface(textSurface);
+        i32 textWidth, textHeight;
+        TTF_SizeText(font, scoreText, &textWidth, &textHeight);
+        SDL_Rect textRect = (SDL_Rect){
+            .x = 10,
+            .y = 10,
+            .w = textWidth,
+            .h = textHeight,
+        };
+        SDL_RenderCopy(renderer, textTexture, nil, &textRect);
+
         SDL_RenderPresent(renderer);
+        SDL_DestroyTexture(textTexture);
         startTime = SDL_GetTicks();
     }
-
 
     return 0;
 }
