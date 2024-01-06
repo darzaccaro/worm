@@ -131,17 +131,18 @@ void* DynamicArrayAt(DynamicArray array, u64 index) {
 #include <SDL_image.h>
 
 #define TILE_SIZE     64
-#define TILES_WIDE    16
-#define TILES_TALL    12
+#define TILES_WIDE    19
+#define TILES_TALL    10
 #define WINDOW_WIDTH  TILES_WIDE * TILE_SIZE
 #define WINDOW_HEIGHT TILES_TALL * TILE_SIZE
 #define FRAMES_PER_SECOND 60
 #define MS_PER_FRAME ((1.f/60.f) * 1000.f)
-#define MS_PER_UPDATE MS_PER_FRAME * 10.f
+#define MS_PER_UPDATE MS_PER_FRAME * 5.f
 #define MAX_APPLES 16
 #define MAX_INPUT_QUEUE_SIZE 3
 #define MAX_SCORE_TEXT 128
 #define MS_PER_APPLE_SPAWN 4 * 1000
+
 
 typedef struct {
     f32 x;
@@ -508,10 +509,10 @@ int main(int argc, char* args[]) {
             }
         }
         // clear to white
-        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+        SDL_SetRenderDrawColor(renderer, 110, 126, 133, 255);
         SDL_RenderClear(renderer);
         // draw grid
-        SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
+        SDL_SetRenderDrawColor(renderer, 120, 136, 143, 255);
         for (i32 y = 0; y < TILES_TALL; y++) {
             SDL_RenderDrawLine(renderer, 0, y * TILE_SIZE, TILES_WIDE * TILE_SIZE, y * TILE_SIZE);
 
