@@ -140,6 +140,7 @@ void* DynamicArrayAt(DynamicArray array, u64 index) {
 #define MAX_APPLES 16
 #define MAX_INPUT_QUEUE_SIZE 3
 #define MAX_SCORE_TEXT 128
+#define MS_PER_APPLE_SPAWN 4 * 1000
 
 typedef struct {
     f32 x;
@@ -260,13 +261,7 @@ void SpawnApple() {
             .y = rand() % TILES_TALL,
         };
         // TODO make sure snake is not already here
-        /*
-        for (u64 i = 0; i < snake.length; i++) {
-            if (V2fEqV2f(pos, snake.positions[i])) {
-
-            }
-        }
-        */
+        // TODO make sure apple is not already here
         apples[i].position = pos;
         apples[i].isActive = true;
         break;
@@ -325,6 +320,7 @@ int main(int argc, char* args[]) {
     bool isRunning = true;
     u32 startTime = SDL_GetTicks();
     u32 updateTime = SDL_GetTicks();
+    u32 appleTime = SDL_GetTicks();
     u64 prevScore = score;
     bool ateLastFrame = false;
     while (isRunning) {
@@ -388,7 +384,10 @@ int main(int argc, char* args[]) {
                 }
             }
             
-            SpawnApple();
+            if (SDL_GetTicks() - appleTime >= MS_PER_APPLE_SPAWN) {
+                SpawnApple();
+                appleTime = SDL_GetTicks();
+            }
 
             if (prevScore != score) {
                 ScoreTextUpdate(scoreText, score);
@@ -401,6 +400,7 @@ int main(int argc, char* args[]) {
         DrawApples();
         SnakeDraw(snake);
 
+        // draw text
         SDL_Surface* textSurface = TTF_RenderText_Blended(font, scoreText, (SDL_Color) {255, 255, 255, 255});
         assert(textSurface);
         SDL_Texture* textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
