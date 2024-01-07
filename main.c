@@ -185,8 +185,9 @@ Snake CreateSnake(V2f position, V2f direction, u64 length) {
     snake.length = length;
     snake.directions[0] = direction;
     snake.positions[0] = position;
-    for (u64 i = 1; i < length; i++) {
-        snake.positions[i] = position;
+    for (i32 i = 1; i < length; i++) {
+        V2f offset = V2fMul(direction, -i);
+        snake.positions[i] = V2fAddV2f(position, offset);
         snake.directions[i] = direction;
     }
     return snake;
@@ -242,10 +243,38 @@ void DrawSnake() {
         if (i == 0) {
             direction = snake.directions[i];
             sprite = SN_HEAD;
+
+            if (direction.x == 1) {
+                angle = 90;
+            }
+            if (direction.x == -1) {
+                angle = -90;
+            }
+            if (direction.y == -1) {
+                angle = 0;
+            }
+            if (direction.y == 1) {
+                angle = 180;
+            }
+
         }
         else if (i == snake.length - 1) {
             direction = snake.directions[i - 1];
             sprite = SN_TAIL;
+
+            if (direction.x == 1) {
+                angle = 90;
+            }
+            if (direction.x == -1) {
+                angle = -90;
+            }
+            if (direction.y == -1) {
+                angle = 0;
+            }
+            if (direction.y == 1) {
+                angle = 180;
+            }
+
         }
         else {
             V2f pa = snake.positions[i - 1];
@@ -291,18 +320,6 @@ void DrawSnake() {
                 sprite = SN_TRANSPARENT;
             }
             
-        }
-        if (direction.x == 1) {
-            angle = 90;
-        }
-        if (direction.x == -1) {
-            angle = -90;
-        }
-        if (direction.y == -1) {
-            angle = 0;
-        }
-        if (direction.y == 1) {
-            angle = 180;
         }
         DrawSprite(sprite, snake.positions[i].x, snake.positions[i].y, angle);
     }
