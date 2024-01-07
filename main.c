@@ -31,8 +31,8 @@ typedef const char* cstring;
 #include <SDL_image.h>
 
 #define TILE_SIZE     64
-#define TILES_WIDE    19
-#define TILES_TALL    10
+#define TILES_WIDE    16
+#define TILES_TALL    9
 #define WINDOW_WIDTH  TILES_WIDE * TILE_SIZE
 #define WINDOW_HEIGHT TILES_TALL * TILE_SIZE
 #define FRAMES_PER_SECOND 60
@@ -42,6 +42,7 @@ typedef const char* cstring;
 #define MAX_INPUT_QUEUE_SIZE 3
 #define MAX_SCORE_TEXT 128
 #define MS_PER_APPLE_SPAWN 4 * 1000
+#define DEBUG_MODE true
 
 typedef struct {
     f32 x;
@@ -566,10 +567,17 @@ EVENT_LOOP:
             }
         }
 
-UPDATE_AND_RENDER:
+    UPDATE_AND_RENDER:
+#ifdef DEBUG_MODE
+        gameMode = GM_PLAY;
+        if (!wasKeyPressed) {
+            goto EVENT_LOOP;
+        }
+#else
         if (SDL_GetTicks() - startTime < MS_PER_FRAME) {
             goto EVENT_LOOP;
         }
+#endif
         // clear to white
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         SDL_RenderClear(renderer);
@@ -601,6 +609,7 @@ UPDATE_AND_RENDER:
         }
 
         SDL_RenderPresent(renderer);
+        wasKeyPressed = false;
         startTime = SDL_GetTicks();
     }
 
