@@ -472,7 +472,7 @@ void GameModeGameOver() {
         TTF_SizeText(font, scoreText, &textWidth, &textHeight);
         SDL_Rect textRect = (SDL_Rect){
             .x = WINDOW_WIDTH / 2 - textWidth / 2,
-            .y = WINDOW_HEIGHT / 4 - textHeight - 2,
+            .y = WINDOW_HEIGHT / 2 - textHeight - 2,
             .w = textWidth,
             .h = textHeight,
         };
@@ -481,6 +481,7 @@ void GameModeGameOver() {
 }
 
 int main(int argc, char* args[]) {
+PLATFORM_INIT:
     srand((u32)time(nil));
 
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
@@ -529,6 +530,7 @@ int main(int argc, char* args[]) {
 
     SDL_RenderSetScale(renderer, scaleX, scaleY);
 
+GAME_INIT:
     ScoreTextUpdate();
 
     snake = CreateSnake((V2f) { 4, 2 }, (V2f) { 1, 0 }, 4);
@@ -541,6 +543,8 @@ int main(int argc, char* args[]) {
     ateLastFrame = false;
     wasKeyPressed = false;
     SDL_KeyCode lastKey = nil;
+
+EVENT_LOOP:
     while (isRunning) {
         SDL_Event event;
         while (SDL_PollEvent(&event) != 0) {
@@ -552,7 +556,7 @@ int main(int argc, char* args[]) {
                 if (gameMode == GM_START || gameMode == GM_GAME_OVER) {
                     score = 0;
                     gameMode = GM_PLAY;
-                    goto UPDATE_AND_RENDER;
+                    goto GAME_INIT;
                 }
                 switch (event.key.keysym.sym) {
                 case SDLK_ESCAPE: {
@@ -594,6 +598,7 @@ int main(int argc, char* args[]) {
                 }
             }
         }
+
 UPDATE_AND_RENDER:
         while (SDL_GetTicks() - startTime < MS_PER_FRAME) {
             continue;
@@ -610,7 +615,6 @@ UPDATE_AND_RENDER:
                 SDL_RenderDrawLine(renderer, x * TILE_SIZE, 0, x * TILE_SIZE, TILES_TALL * TILE_SIZE);
             }
         }
-
 
         switch (gameMode) {
         case GM_START: {
