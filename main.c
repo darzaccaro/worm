@@ -386,10 +386,22 @@ void GameModePlay() {
             ateLastFrame = false;
         }
         UpdateSnake(direction);
-        // handle collisions
+        // handle boundary collisions
         if (snake.positions[0].x < 0 || snake.positions[0].x > TILES_WIDE || snake.positions[0].y < 0 || snake.positions[0].y > TILES_TALL) {
             gameMode = GM_GAME_OVER;
+            return;
         }
+        // handle self collisions
+        for (u64 i = 1; i < snake.length; i++) {
+            V2f head = snake.positions[0];
+            V2f body = snake.positions[i];
+            if (V2fEqV2f(head, body)) {
+                gameMode = GM_GAME_OVER;
+                return;
+            }
+        }
+
+
         for (u64 i = 0; i < MAX_APPLES; i++) {
             if (!apples[i].isActive) continue;
             if (V2fEqV2f(apples[i].position, snake.positions[0])) {
