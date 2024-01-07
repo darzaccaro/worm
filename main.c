@@ -265,7 +265,6 @@ void DrawSnake() {
                 || V2fEqV2f(diffA, (V2f) { -1, 0 }) && V2fEqV2f(diffC, (V2f) { -1, 0 })
                 || V2fEqV2f(diffA, (V2f) { 0, -1 }) && V2fEqV2f(diffC, (V2f) { 0, 1 })
                 || V2fEqV2f(diffA, (V2f) { 0, 1 }) && V2fEqV2f(diffC, (V2f) { 0, -1 })
-
                 ) {
                 if (diffA.x) {
                     angle = 90;
@@ -393,23 +392,6 @@ void GameModePlay() {
 
         if (ateLastFrame) {
             snake = GrowSnake();
-            //u64 length = snake.length++;
-
-            /*
-            V2f* positions = malloc(snake.length * sizeof(V2f));
-            assert(positions);
-            V2f* directions = malloc(snake.length * sizeof(V2f));
-            assert(directions);
-            for (u64 i = 0; i < snake.length; i++) {
-                positions[i] = snake.positions[i];
-                directions[i] = snake.directions[i];
-            }
-            free(snake.positions);
-            free(snake.directions);
-            snake.length = length;
-            snake.positions = positions;
-            snake.directions = directions;
-            */
             ateLastFrame = false;
         }
         UpdateSnake(direction);
@@ -558,6 +540,7 @@ int main(int argc, char* args[]) {
     prevScore = score;
     ateLastFrame = false;
     wasKeyPressed = false;
+    SDL_KeyCode lastKey = nil;
     while (isRunning) {
         SDL_Event event;
         while (SDL_PollEvent(&event) != 0) {
@@ -569,14 +552,40 @@ int main(int argc, char* args[]) {
                 if (gameMode == GM_START || gameMode == GM_GAME_OVER) {
                     score = 0;
                     gameMode = GM_PLAY;
+                    goto UPDATE_AND_RENDER;
                 }
                 switch (event.key.keysym.sym) {
                 case SDLK_ESCAPE: {
                     isRunning = false;
                     break;
                 }
-                case SDLK_LEFT: case SDLK_RIGHT: case SDLK_UP: case SDLK_DOWN: {
-                    if (!event.key.repeat) {
+                case SDLK_LEFT: {
+                    if (!event.key.repeat && lastKey != SDLK_RIGHT) {
+                        lastKey = SDLK_LEFT;
+                        InputQueuePush(event.key.keysym.sym);
+                        wasKeyPressed = true;
+                    }
+                    break;
+                }
+                case SDLK_RIGHT: {
+                    if (!event.key.repeat && lastKey != SDLK_LEFT) {
+                        lastKey = SDLK_RIGHT;
+                        InputQueuePush(event.key.keysym.sym);
+                        wasKeyPressed = true;
+                    }
+                    break;
+                }
+                case SDLK_UP: {
+                    if (!event.key.repeat && lastKey != SDLK_DOWN) {
+                        lastKey = SDLK_UP;
+                        InputQueuePush(event.key.keysym.sym);
+                        wasKeyPressed = true;
+                    }
+                    break;
+                }
+                case SDLK_DOWN: {
+                    if (!event.key.repeat && lastKey != SDLK_UP) {
+                        lastKey = SDLK_DOWN;
                         InputQueuePush(event.key.keysym.sym);
                         wasKeyPressed = true;
                     }
@@ -584,6 +593,10 @@ int main(int argc, char* args[]) {
                 }
                 }
             }
+        }
+UPDATE_AND_RENDER:
+        while (SDL_GetTicks() - startTime < MS_PER_FRAME) {
+            continue;
         }
         // clear to white
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
@@ -598,10 +611,6 @@ int main(int argc, char* args[]) {
             }
         }
 
-        // Update and render
-        while (SDL_GetTicks() - startTime < MS_PER_FRAME) {
-            continue;
-        }
 
         switch (gameMode) {
         case GM_START: {
