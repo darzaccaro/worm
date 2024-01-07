@@ -20,6 +20,9 @@ typedef double f64;
 typedef const char* cstring;
 
 #define nil 0
+#define global static
+#define persist static
+
 
 #define ARRAY_COUNT(array) (sizeof(array) / sizeof(array[0]))
 
@@ -93,27 +96,6 @@ typedef struct {
     SDL_KeyCode inputs[MAX_INPUT_QUEUE_SIZE];
 } InputQueue;
 
-SDL_KeyCode InputQueuePush(InputQueue* iq, SDL_KeyCode key) {
-    for (u64 i = 0; i < MAX_INPUT_QUEUE_SIZE; i++) {
-        if (iq->inputs[i] == 0) {
-            iq->inputs[i] = key;
-            break;
-        }
-    }
-}
-
-SDL_KeyCode InputQueuePop(InputQueue* iq) {
-    SDL_KeyCode key = iq->inputs[0];
-    for (u64 i = 0; i < MAX_INPUT_QUEUE_SIZE; i++) {
-        if (i == MAX_INPUT_QUEUE_SIZE - 1) {
-            iq->inputs[i] = 0;
-        } else {
-            iq->inputs[i] = iq->inputs[i + 1];
-        }
-    }
-    return key;
-}
-
 typedef enum {
     SN_STRAIGHT,
     SN_TOP_LEFT,
@@ -131,28 +113,62 @@ typedef struct {
     i32 tileSize;
 } SpriteSheet;
 
+typedef enum {
+    GM_START,
+    GM_PLAY,
+    GM_GAME_OVER,
+} GameMode;
 
-static SDL_Renderer* renderer;
-static SpriteSheet spriteSheet;
-static TTF_Font* font;
-static Apple apples[MAX_APPLES];
-static Snake snake;
-static InputQueue inputQueue;
-static u64 score;
-static char* scoreText[MAX_SCORE_TEXT];
-static bool onlyUpdateOnKeyPress = false;
+global SDL_Renderer* renderer;
+global SpriteSheet spriteSheet;
+global TTF_Font* font;
+global Apple apples[MAX_APPLES];
+global Snake snake;
+global InputQueue inputQueue;
+global char* scoreText[MAX_SCORE_TEXT];
+global GameMode gameMode;
+global u32 startTime;
+global u32 updateTime;
+global u32 appleTime;
+global u64 score;
+global u64 prevScore;
+global bool ateLastFrame;
+global bool wasKeyPressed;
+global bool isRunning;
 
-void DrawSprite(SpriteSheet sheet, SpriteName sprite, u64 x, u64 y, f64 angle) {
-    i32 tilesWide = sheet.width / sheet.tileSize;
-    i32 tilesHigh = sheet.height / sheet.tileSize;
+SDL_KeyCode InputQueuePush(SDL_KeyCode key) {
+    for (u64 i = 0; i < MAX_INPUT_QUEUE_SIZE; i++) {
+        if (inputQueue.inputs[i] == 0) {
+            inputQueue.inputs[i] = key;
+            break;
+        }
+    }
+}
+
+SDL_KeyCode InputQueuePop() {
+    SDL_KeyCode key = inputQueue.inputs[0];
+    for (u64 i = 0; i < MAX_INPUT_QUEUE_SIZE; i++) {
+        if (i == MAX_INPUT_QUEUE_SIZE - 1) {
+            inputQueue.inputs[i] = 0;
+        }
+        else {
+            inputQueue.inputs[i] = inputQueue.inputs[i + 1];
+        }
+    }
+    return key;
+}
+
+void DrawSprite(SpriteName sprite, u64 x, u64 y, f64 angle) {
+    i32 tilesWide = spriteSheet.width / spriteSheet.tileSize;
+    i32 tilesHigh = spriteSheet.height / spriteSheet.tileSize;
     i32 sy = (sprite / tilesWide);
     i32 sx = sprite % tilesWide;
 
     SDL_Rect source = (SDL_Rect){
-        .x = sx * sheet.tileSize,
-        .y = sy * sheet.tileSize,
-        .w = sheet.tileSize,
-        .h = sheet.tileSize,
+        .x = sx * spriteSheet.tileSize,
+        .y = sy * spriteSheet.tileSize,
+        .w = spriteSheet.tileSize,
+        .h = spriteSheet.tileSize,
     };
     SDL_Rect destination = (SDL_Rect){
         .x = x * TILE_SIZE,
@@ -164,11 +180,11 @@ void DrawSprite(SpriteSheet sheet, SpriteName sprite, u64 x, u64 y, f64 angle) {
 }
 
 
-void ScoreTextUpdate(char* scoreText, u64 score) {
+void ScoreTextUpdate() {
     sprintf_s(scoreText, MAX_SCORE_TEXT, "Score: %llu", score);
 }
 
-Snake SnakeCreate(V2f position, V2f direction, u64 length) {
+Snake CreateSnake(V2f position, V2f direction, u64 length) {
     Snake snake = { 0 };
     snake.positions = malloc(sizeof(V2f) * length);
     assert(snake.positions);
@@ -184,7 +200,35 @@ Snake SnakeCreate(V2f position, V2f direction, u64 length) {
     return snake;
 }
 
-void SnakeUpdate(Snake snake, V2f direction) {
+Snake GrowSnake() {
+    Snake next = { 0 };
+    next.length = snake.length * 2;
+    next.positions = malloc(sizeof(V2f) * next.length);
+    assert(next.positions);
+    next.directions = malloc(sizeof(V2f) * next.length);
+    assert(next.directions);
+
+    
+    for (u64 i = 0; i < next.length; i++) {
+        if (i < snake.length) {
+            next.positions[i] = snake.positions[i];
+            next.directions[i] = snake.directions[i];
+        }
+        else {
+            next.positions[i] = next.positions[snake.length - 1];
+            next.directions[i] = next.directions[snake.length - 1];
+        }
+    }
+    free(snake.positions);
+    snake.positions = nil;
+    free(snake.directions);
+    snake.directions = nil;
+    return next;
+
+}
+
+
+void UpdateSnake(V2f direction) {
     // body
     for (u64 i = snake.length - 1; i > 0; i--) {
         snake.positions[i] = snake.positions[i - 1];
@@ -195,7 +239,7 @@ void SnakeUpdate(Snake snake, V2f direction) {
     snake.positions[0] = V2fAddV2f(snake.positions[0], snake.directions[0]);
 }
 
-void SnakeDraw(Snake snake) {
+void DrawSnake() {
     SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
 
     for (u64 i = 0; i < snake.length; i++) {
@@ -265,7 +309,7 @@ void SnakeDraw(Snake snake) {
         if (direction.y == 1) {
             angle = 180;
         }
-        DrawSprite(spriteSheet, sprite, snake.positions[i].x, snake.positions[i].y, angle);
+        DrawSprite(sprite, snake.positions[i].x, snake.positions[i].y, angle);
     }
 }
 
@@ -288,10 +332,171 @@ void DrawApples() {
     SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
     for (u64 i = 0; i < ARRAY_COUNT(apples); i++) {
         if (!apples[i].isActive) continue;
-        DrawSprite(spriteSheet, SN_APPLE, apples[i].position.x, apples[i].position.y, 0);
+        DrawSprite(SN_APPLE, apples[i].position.x, apples[i].position.y, 0);
     }
 }
 
+void GameModeStart() {
+    {
+        const char* text = "Snake";
+        SDL_Surface* surface = TTF_RenderText_Blended(font, text, (SDL_Color) { 255, 255, 255, 255 });
+        assert(surface);
+        SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
+        assert(texture);
+        SDL_FreeSurface(surface);
+        i32 textWidth, textHeight;
+        TTF_SizeText(font, text, &textWidth, &textHeight);
+        SDL_Rect textRect = (SDL_Rect){
+            .x = WINDOW_WIDTH / 2 - textWidth / 2,
+            .y = WINDOW_HEIGHT / 4 - textHeight - 2,
+            .w = textWidth,
+            .h = textHeight,
+        };
+        SDL_RenderCopy(renderer, texture, nil, &textRect);
+    }
+    {
+        const char* text = "Press any key to play";
+        SDL_Surface* surface = TTF_RenderText_Blended(font, text, (SDL_Color) { 255, 255, 255, 255 });
+        assert(surface);
+        SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
+        assert(texture);
+        SDL_FreeSurface(surface);
+        i32 textWidth, textHeight;
+        TTF_SizeText(font, text, &textWidth, &textHeight);
+        SDL_Rect textRect = (SDL_Rect){
+            .x = WINDOW_WIDTH / 2 - textWidth / 2,
+            .y = WINDOW_HEIGHT / 2 - textHeight - 2,
+            .w = textWidth,
+            .h = textHeight,
+        };
+        SDL_RenderCopy(renderer, texture, nil, &textRect);
+    }
+
+}
+
+void GameModePlay() {
+    if (SDL_GetTicks() - updateTime >= MS_PER_UPDATE) {
+        SDL_KeyCode key = InputQueuePop();
+        V2f direction = snake.directions[0];
+        if (key == SDLK_LEFT) {
+            direction = (V2f){ -1, 0 };
+        }
+        if (key == SDLK_RIGHT) {
+            direction = (V2f){ 1, 0 };
+        }
+        if (key == SDLK_UP) {
+            direction = (V2f){ 0, -1 };
+        }
+        if (key == SDLK_DOWN) {
+            direction = (V2f){ 0, 1 };
+        }
+
+        if (ateLastFrame) {
+            snake = GrowSnake();
+            //u64 length = snake.length++;
+
+            /*
+            V2f* positions = malloc(snake.length * sizeof(V2f));
+            assert(positions);
+            V2f* directions = malloc(snake.length * sizeof(V2f));
+            assert(directions);
+            for (u64 i = 0; i < snake.length; i++) {
+                positions[i] = snake.positions[i];
+                directions[i] = snake.directions[i];
+            }
+            free(snake.positions);
+            free(snake.directions);
+            snake.length = length;
+            snake.positions = positions;
+            snake.directions = directions;
+            */
+            ateLastFrame = false;
+        }
+        UpdateSnake(direction);
+        // handle collisions
+        if (snake.positions[0].x < 0 || snake.positions[0].x > TILES_WIDE || snake.positions[0].y < 0 || snake.positions[0].y > TILES_TALL) {
+            gameMode = GM_GAME_OVER;
+        }
+        for (u64 i = 0; i < MAX_APPLES; i++) {
+            if (!apples[i].isActive) continue;
+            if (V2fEqV2f(apples[i].position, snake.positions[0])) {
+                score += 100;
+                apples[i].isActive = false;
+                ateLastFrame = true;
+            }
+        }
+
+        if (SDL_GetTicks() - appleTime >= MS_PER_APPLE_SPAWN) {
+            SpawnApple();
+            appleTime = SDL_GetTicks();
+        }
+
+        if (prevScore != score) {
+            ScoreTextUpdate();
+            prevScore = score;
+        }
+
+        updateTime = SDL_GetTicks();
+    }
+
+    DrawApples();
+    DrawSnake(snake);
+
+    // draw text
+    SDL_Surface* textSurface = TTF_RenderText_Blended(font, scoreText, (SDL_Color) { 255, 255, 255, 255 });
+    assert(textSurface);
+    SDL_Texture* textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
+    assert(textTexture);
+    SDL_FreeSurface(textSurface);
+    i32 textWidth, textHeight;
+    TTF_SizeText(font, scoreText, &textWidth, &textHeight);
+    SDL_Rect textRect = (SDL_Rect){
+        .x = 10,
+        .y = 10,
+        .w = textWidth,
+        .h = textHeight,
+    };
+    SDL_RenderCopy(renderer, textTexture, nil, &textRect);
+
+    if (textTexture) {
+        SDL_DestroyTexture(textTexture);
+    }
+}
+void GameModeGameOver() {
+    {
+        const char* text = "Game Over";
+        SDL_Surface* surface = TTF_RenderText_Blended(font, text, (SDL_Color) { 255, 255, 255, 255 });
+        assert(surface);
+        SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
+        assert(texture);
+        SDL_FreeSurface(surface);
+        i32 textWidth, textHeight;
+        TTF_SizeText(font, text, &textWidth, &textHeight);
+        SDL_Rect textRect = (SDL_Rect){
+            .x = WINDOW_WIDTH / 2 - textWidth / 2,
+            .y = WINDOW_HEIGHT / 4 - textHeight - 2,
+            .w = textWidth,
+            .h = textHeight,
+        };
+        SDL_RenderCopy(renderer, texture, nil, &textRect);
+    }
+    {
+        SDL_Surface* surface = TTF_RenderText_Blended(font, scoreText, (SDL_Color) { 255, 255, 255, 255 });
+        assert(surface);
+        SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
+        assert(texture);
+        SDL_FreeSurface(surface);
+        i32 textWidth, textHeight;
+        TTF_SizeText(font, scoreText, &textWidth, &textHeight);
+        SDL_Rect textRect = (SDL_Rect){
+            .x = WINDOW_WIDTH / 2 - textWidth / 2,
+            .y = WINDOW_HEIGHT / 4 - textHeight - 2,
+            .w = textWidth,
+            .h = textHeight,
+        };
+        SDL_RenderCopy(renderer, texture, nil, &textRect);
+    }
+}
 
 int main(int argc, char* args[]) {
     srand((u32)time(nil));
@@ -308,7 +513,7 @@ int main(int argc, char* args[]) {
         assert(false);
     }
 
-    SDL_Window* window = SDL_CreateWindow("Snake Rogue", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_SHOWN);
+    SDL_Window* window = SDL_CreateWindow("Snake", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_SHOWN);
     assert(window);
     
     renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
@@ -316,8 +521,6 @@ int main(int argc, char* args[]) {
     
     font = TTF_OpenFont("assets/fonts/Roboto-Regular.ttf", 48);
     assert(font);
-
-
 
     {
         SDL_Surface* surface = IMG_Load("assets/images/sprites.png");
@@ -344,17 +547,17 @@ int main(int argc, char* args[]) {
 
     SDL_RenderSetScale(renderer, scaleX, scaleY);
 
-    ScoreTextUpdate(scoreText, score);
+    ScoreTextUpdate();
 
-    snake = SnakeCreate((V2f) { 4, 2 }, (V2f) { 1, 0 }, 4);
+    snake = CreateSnake((V2f) { 4, 2 }, (V2f) { 1, 0 }, 4);
 
-    bool isRunning = true;
-    u32 startTime = SDL_GetTicks();
-    u32 updateTime = SDL_GetTicks();
-    u32 appleTime = SDL_GetTicks();
-    u64 prevScore = score;
-    bool ateLastFrame = false;
-    bool wasKeyPressed = false;
+    isRunning = true;
+    startTime = SDL_GetTicks();
+    updateTime = SDL_GetTicks();
+    appleTime = SDL_GetTicks();
+    prevScore = score;
+    ateLastFrame = false;
+    wasKeyPressed = false;
     while (isRunning) {
         SDL_Event event;
         while (SDL_PollEvent(&event) != 0) {
@@ -363,6 +566,10 @@ int main(int argc, char* args[]) {
                 break;
             }
             if (event.type == SDL_KEYDOWN) {
+                if (gameMode == GM_START || gameMode == GM_GAME_OVER) {
+                    score = 0;
+                    gameMode = GM_PLAY;
+                }
                 switch (event.key.keysym.sym) {
                 case SDLK_ESCAPE: {
                     isRunning = false;
@@ -370,7 +577,7 @@ int main(int argc, char* args[]) {
                 }
                 case SDLK_LEFT: case SDLK_RIGHT: case SDLK_UP: case SDLK_DOWN: {
                     if (!event.key.repeat) {
-                        InputQueuePush(&inputQueue, event.key.keysym.sym);
+                        InputQueuePush(event.key.keysym.sym);
                         wasKeyPressed = true;
                     }
                     break;
@@ -396,99 +603,24 @@ int main(int argc, char* args[]) {
             continue;
         }
 
-        if (onlyUpdateOnKeyPress && wasKeyPressed) {
-            wasKeyPressed = false;
-            SDL_KeyCode key = InputQueuePop(&inputQueue);
-            V2f direction = snake.directions[0];
-            if (key == SDLK_LEFT) {
-                direction = (V2f){ -1, 0 };
-            }
-            if (key == SDLK_RIGHT) {
-                direction = (V2f){ 1, 0 };
-            }
-            if (key == SDLK_UP) {
-                direction = (V2f){ 0, -1 };
-            }
-            if (key == SDLK_DOWN) {
-                direction = (V2f){ 0, 1 };
-            }
-            // TODO handle this key this frame.
-
-            if (ateLastFrame) {
-                snake.length++;
-                ateLastFrame = false;
-            }
-            SnakeUpdate(snake, direction);
+        switch (gameMode) {
+        case GM_START: {
+            GameModeStart();
+            break;
         }
-
-        if (!onlyUpdateOnKeyPress && SDL_GetTicks() - updateTime >= MS_PER_UPDATE) {
-            SDL_KeyCode key = InputQueuePop(&inputQueue);
-            V2f direction = snake.directions[0];
-            if (key == SDLK_LEFT) {
-                direction = (V2f){ -1, 0 };
-            }
-            if (key == SDLK_RIGHT) {
-                direction = (V2f){ 1, 0 };
-            }
-            if (key == SDLK_UP) {
-                direction = (V2f){ 0, -1 };
-            }
-            if (key == SDLK_DOWN) {
-                direction = (V2f){ 0, 1 };
-            }
-            // TODO handle this key this frame.
-
-            if (ateLastFrame) {
-                snake.length++;
-                ateLastFrame = false;
-            }
-            SnakeUpdate(snake, direction);
-            // handle collisions
-            for (u64 i = 0; i < MAX_APPLES; i++) {
-                if (!apples[i].isActive) continue;
-                if (V2fEqV2f(apples[i].position, snake.positions[0])) {
-                    score += 100;
-                    apples[i].isActive = false;
-                    ateLastFrame = true;
-                }
-            }
-            
-            if (SDL_GetTicks() - appleTime >= MS_PER_APPLE_SPAWN) {
-                SpawnApple();
-                appleTime = SDL_GetTicks();
-            }
-
-            if (prevScore != score) {
-                ScoreTextUpdate(scoreText, score);
-                prevScore = score;
-            }
-            
-            updateTime = SDL_GetTicks();
+        case GM_PLAY: {
+            GameModePlay();
+            break;
         }
-
-        DrawApples();
-        SnakeDraw(snake);
-
-        // draw text
-        SDL_Surface* textSurface = TTF_RenderText_Blended(font, scoreText, (SDL_Color) {255, 255, 255, 255});
-        assert(textSurface);
-        SDL_Texture* textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
-        assert(textTexture);
-        SDL_FreeSurface(textSurface);
-        i32 textWidth, textHeight;
-        TTF_SizeText(font, scoreText, &textWidth, &textHeight);
-        SDL_Rect textRect = (SDL_Rect){
-            .x = 10,
-            .y = 10,
-            .w = textWidth,
-            .h = textHeight,
-        };
-        SDL_RenderCopy(renderer, textTexture, nil, &textRect);
+        case GM_GAME_OVER: {
+            GameModeGameOver();
+            break;
+        }
+        default:
+            assert(false);
+        }
 
         SDL_RenderPresent(renderer);
-        if (textTexture) {
-            SDL_DestroyTexture(textTexture);
-        }
         startTime = SDL_GetTicks();
     }
 
