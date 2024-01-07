@@ -42,7 +42,7 @@ typedef const char* cstring;
 #define MAX_INPUT_QUEUE_SIZE 3
 #define MAX_SCORE_TEXT 128
 #define MS_PER_APPLE_SPAWN 4 * 1000
-#define DEBUG_MODE true
+// #define DEBUG_MODE true
 
 typedef struct {
     f32 x;
@@ -91,14 +91,12 @@ typedef struct {
 } InputQueue;
 
 typedef enum {
-    SN_STRAIGHT,
-    SN_TOP_LEFT,
-    SN_TOP_RIGHT,
+    SN_TRANSPARENT,
     SN_HEAD,
-    SN_APPLE,
-    SN_BOTTOM_LEFT,
-    SN_BOTTOM_RIGHT,
+    SN_BODY_STRAIGHT,
+    SN_BODY_CURVED,
     SN_TAIL,
+    SN_APPLE,
 } SpriteName;
 
 typedef struct {
@@ -196,7 +194,7 @@ Snake CreateSnake(V2f position, V2f direction, u64 length) {
 
 Snake GrowSnake() {
     Snake next = { 0 };
-    next.length = snake.length * 2;
+    next.length = snake.length + 4;
     next.positions = malloc(sizeof(V2f) * next.length);
     assert(next.positions);
     next.directions = malloc(sizeof(V2f) * next.length);
@@ -208,6 +206,10 @@ Snake GrowSnake() {
             next.positions[i] = snake.positions[i];
             next.directions[i] = snake.directions[i];
         }
+        else if (i == next.length - 1) {
+            next.positions[i] = next.positions[snake.length - 1];
+            next.directions[i] = next.directions[snake.length - 2];
+        }
         else {
             next.positions[i] = next.positions[snake.length - 1];
             next.directions[i] = next.directions[snake.length - 1];
@@ -218,7 +220,6 @@ Snake GrowSnake() {
     free(snake.directions);
     snake.directions = nil;
     return next;
-
 }
 
 
@@ -234,8 +235,6 @@ void UpdateSnake(V2f direction) {
 }
 
 void DrawSnake() {
-    SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
-
     for (u64 i = 0; i < snake.length; i++) {
         SpriteName sprite = 0;
         f64 angle = 0;
@@ -263,30 +262,33 @@ void DrawSnake() {
                 if (diffA.x) {
                     angle = 90;
                 }
-                    sprite = SN_STRAIGHT;
+                sprite = SN_BODY_STRAIGHT;
             } else if (
               V2fEqV2f(diffA, (V2f) { 1, 0 }) && V2fEqV2f(diffC, (V2f) { 0, 1 })
                 || V2fEqV2f(diffA, (V2f) { 0, 1 }) && V2fEqV2f(diffC, (V2f) { 1, 0 })
                 ) {
-                    sprite = SN_BOTTOM_RIGHT;
+                angle = 180;
+                sprite = SN_BODY_CURVED;
             }
             else if (V2fEqV2f(diffA, (V2f) { 0, -1 }) && V2fEqV2f(diffC, (V2f) { 1, 0 })
                 || V2fEqV2f(diffA, (V2f) { 1, 0 }) && V2fEqV2f(diffC, (V2f) { 0, -1 })
-           
                 ) {
-                    sprite = SN_TOP_RIGHT;
+                angle = 90;
+                sprite = SN_BODY_CURVED;
             }
             else if (V2fEqV2f(diffA, (V2f) { 0, 1 }) && V2fEqV2f(diffC, (V2f) { -1, 0 })
                 || V2fEqV2f(diffA, (V2f) { -1, 0 }) && V2fEqV2f(diffC, (V2f) { 0, 1 })
                 ) {
-                    sprite = SN_BOTTOM_LEFT;
+                angle = -90;
+                    sprite = SN_BODY_CURVED;
             }
             else if (V2fEqV2f(diffA, (V2f) { -1, 0 }) && V2fEqV2f(diffC, (V2f) { 0, -1 })
                 || V2fEqV2f(diffA, (V2f) { 0, -1 }) && V2fEqV2f(diffC, (V2f) { -1, 0 })) {
-                    sprite = SN_TOP_LEFT;
+                angle = 0;
+                    sprite = SN_BODY_CURVED;
             }
             else {
-                sprite = SN_APPLE;
+                sprite = SN_TRANSPARENT;
             }
             
         }
