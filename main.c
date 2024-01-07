@@ -43,24 +43,17 @@ typedef const char* cstring;
 #define MAX_SCORE_TEXT 128
 #define MS_PER_APPLE_SPAWN 4 * 1000
 
-
 typedef struct {
     f32 x;
     f32 y;
 } V2f;
 
 V2f V2fAddV2f(V2f a, V2f b) {
-    return (V2f) {
-        .x = a.x + b.x,
-        .y = a.y + b.y,
-    };
+    return (V2f) { a.x + b.x, a.y + b.y };
 }
 
 V2f V2fMul(V2f a, f32 b) {
-    return (V2f) {
-        .x = a.x * b,
-        .y = a.y * b,
-    };
+    return (V2f) { a.x * b, a.y * b };
 }
 
 bool V2fEqV2f(V2f a, V2f b) {
@@ -124,7 +117,7 @@ global SpriteSheet spriteSheet;
 global TTF_Font* font;
 global Apple apples[MAX_APPLES];
 global Snake snake;
-global InputQueue inputQueue;
+global SDL_KeyCode inputs[MAX_INPUT_QUEUE_SIZE];
 global char* scoreText[MAX_SCORE_TEXT];
 global GameMode gameMode;
 global u32 startTime;
@@ -138,21 +131,21 @@ global bool isRunning;
 
 SDL_KeyCode InputQueuePush(SDL_KeyCode key) {
     for (u64 i = 0; i < MAX_INPUT_QUEUE_SIZE; i++) {
-        if (inputQueue.inputs[i] == 0) {
-            inputQueue.inputs[i] = key;
+        if (inputs[i] == 0) {
+            inputs[i] = key;
             break;
         }
     }
 }
 
 SDL_KeyCode InputQueuePop() {
-    SDL_KeyCode key = inputQueue.inputs[0];
+    SDL_KeyCode key = inputs[0];
     for (u64 i = 0; i < MAX_INPUT_QUEUE_SIZE; i++) {
         if (i == MAX_INPUT_QUEUE_SIZE - 1) {
-            inputQueue.inputs[i] = 0;
+            inputs[i] = 0;
         }
         else {
-            inputQueue.inputs[i] = inputQueue.inputs[i + 1];
+            inputs[i] = inputs[i + 1];
         }
     }
     return key;
@@ -180,7 +173,7 @@ void DrawSprite(SpriteName sprite, u64 x, u64 y, f64 angle) {
 }
 
 
-void ScoreTextUpdate() {
+void UpdateScoreText() {
     sprintf_s(scoreText, MAX_SCORE_TEXT, "Score: %llu", score);
 }
 
@@ -335,40 +328,35 @@ void DrawApples() {
     }
 }
 
+void DrawText(const char* text, f32 x, f32 y, f32 w, f32 h) {
+    SDL_Surface* surface = TTF_RenderText_Blended(font, text, (SDL_Color) { 255, 255, 255, 255 });
+    assert(surface);
+    SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
+    assert(texture);
+    SDL_FreeSurface(surface);
+    SDL_Rect textRect = (SDL_Rect){
+        .x = x,
+        .y = y,
+        .w = w,
+        .h = h,
+    };
+    if (SDL_RenderCopy(renderer, texture, nil, &textRect) != 0) {
+        assert(false);
+    }
+}
+
 void GameModeStart() {
     {
         const char* text = "Snake";
-        SDL_Surface* surface = TTF_RenderText_Blended(font, text, (SDL_Color) { 255, 255, 255, 255 });
-        assert(surface);
-        SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
-        assert(texture);
-        SDL_FreeSurface(surface);
         i32 textWidth, textHeight;
         TTF_SizeText(font, text, &textWidth, &textHeight);
-        SDL_Rect textRect = (SDL_Rect){
-            .x = WINDOW_WIDTH / 2 - textWidth / 2,
-            .y = WINDOW_HEIGHT / 4 - textHeight - 2,
-            .w = textWidth,
-            .h = textHeight,
-        };
-        SDL_RenderCopy(renderer, texture, nil, &textRect);
+        DrawText(text, WINDOW_WIDTH / 2 - textWidth / 2, WINDOW_HEIGHT / 4 - textHeight - 2, textWidth, textHeight);
     }
     {
         const char* text = "Press any key to play";
-        SDL_Surface* surface = TTF_RenderText_Blended(font, text, (SDL_Color) { 255, 255, 255, 255 });
-        assert(surface);
-        SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
-        assert(texture);
-        SDL_FreeSurface(surface);
         i32 textWidth, textHeight;
         TTF_SizeText(font, text, &textWidth, &textHeight);
-        SDL_Rect textRect = (SDL_Rect){
-            .x = WINDOW_WIDTH / 2 - textWidth / 2,
-            .y = WINDOW_HEIGHT / 2 - textHeight - 2,
-            .w = textWidth,
-            .h = textHeight,
-        };
-        SDL_RenderCopy(renderer, texture, nil, &textRect);
+        DrawText(text, WINDOW_WIDTH / 2 - textWidth / 2, WINDOW_HEIGHT / 2 - textHeight - 2, textWidth, textHeight);
     }
 
 }
@@ -414,7 +402,7 @@ void GameModePlay() {
         }
 
         if (prevScore != score) {
-            ScoreTextUpdate();
+            UpdateScoreText();
             prevScore = score;
         }
 
@@ -447,36 +435,15 @@ void GameModePlay() {
 void GameModeGameOver() {
     {
         const char* text = "Game Over";
-        SDL_Surface* surface = TTF_RenderText_Blended(font, text, (SDL_Color) { 255, 255, 255, 255 });
-        assert(surface);
-        SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
-        assert(texture);
-        SDL_FreeSurface(surface);
         i32 textWidth, textHeight;
         TTF_SizeText(font, text, &textWidth, &textHeight);
-        SDL_Rect textRect = (SDL_Rect){
-            .x = WINDOW_WIDTH / 2 - textWidth / 2,
-            .y = WINDOW_HEIGHT / 4 - textHeight - 2,
-            .w = textWidth,
-            .h = textHeight,
-        };
-        SDL_RenderCopy(renderer, texture, nil, &textRect);
+        DrawText(text, WINDOW_WIDTH / 2 - textWidth / 2, WINDOW_HEIGHT / 4 - textHeight - 2, textWidth, textHeight);
     }
     {
-        SDL_Surface* surface = TTF_RenderText_Blended(font, scoreText, (SDL_Color) { 255, 255, 255, 255 });
-        assert(surface);
-        SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
-        assert(texture);
-        SDL_FreeSurface(surface);
+        const char* text = scoreText;
         i32 textWidth, textHeight;
-        TTF_SizeText(font, scoreText, &textWidth, &textHeight);
-        SDL_Rect textRect = (SDL_Rect){
-            .x = WINDOW_WIDTH / 2 - textWidth / 2,
-            .y = WINDOW_HEIGHT / 2 - textHeight - 2,
-            .w = textWidth,
-            .h = textHeight,
-        };
-        SDL_RenderCopy(renderer, texture, nil, &textRect);
+        TTF_SizeText(font, text, &textWidth, &textHeight);
+        DrawText(text, WINDOW_WIDTH / 2 - textWidth / 2, WINDOW_HEIGHT / 2 - textHeight - 2, textWidth, textHeight);
     }
 }
 
@@ -531,7 +498,7 @@ PLATFORM_INIT:
     SDL_RenderSetScale(renderer, scaleX, scaleY);
 
 GAME_INIT:
-    ScoreTextUpdate();
+    UpdateScoreText();
 
     snake = CreateSnake((V2f) { 4, 2 }, (V2f) { 1, 0 }, 4);
 
@@ -600,8 +567,8 @@ EVENT_LOOP:
         }
 
 UPDATE_AND_RENDER:
-        while (SDL_GetTicks() - startTime < MS_PER_FRAME) {
-            continue;
+        if (SDL_GetTicks() - startTime < MS_PER_FRAME) {
+            goto EVENT_LOOP;
         }
         // clear to white
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
