@@ -398,7 +398,7 @@ void GameModePlay() {
         }
         UpdateSnake(direction);
         // handle boundary collisions
-        if (snake.positions[0].x < 0 || snake.positions[0].x > TILES_WIDE || snake.positions[0].y < 0 || snake.positions[0].y > TILES_TALL) {
+        if (snake.positions[0].x < 0 || snake.positions[0].x >= TILES_WIDE || snake.positions[0].y < 0 || snake.positions[0].y >= TILES_TALL) {
             gameMode = GM_GAME_OVER;
             return;
         }
@@ -438,24 +438,11 @@ void GameModePlay() {
     DrawApples();
     DrawSnake(snake);
 
-    // draw text
-    SDL_Surface* textSurface = TTF_RenderText_Blended(font, scoreText, (SDL_Color) { 255, 255, 255, 255 });
-    assert(textSurface);
-    SDL_Texture* textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
-    assert(textTexture);
-    SDL_FreeSurface(textSurface);
-    i32 textWidth, textHeight;
-    TTF_SizeText(font, scoreText, &textWidth, &textHeight);
-    SDL_Rect textRect = (SDL_Rect){
-        .x = 10,
-        .y = 10,
-        .w = textWidth,
-        .h = textHeight,
-    };
-    SDL_RenderCopy(renderer, textTexture, nil, &textRect);
-
-    if (textTexture) {
-        SDL_DestroyTexture(textTexture);
+    {
+        const char* text = scoreText;
+        i32 textWidth, textHeight;
+        TTF_SizeText(font, text, &textWidth, &textHeight);
+        DrawText(text, 10, 10, textWidth, textHeight);
     }
 }
 void GameModeGameOver() {
@@ -603,7 +590,7 @@ EVENT_LOOP:
             goto EVENT_LOOP;
         }
 #endif
-        // clear to white
+        // clear to black
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         SDL_RenderClear(renderer);
         // draw grid
