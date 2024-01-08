@@ -85,7 +85,6 @@ typedef struct {
     u64 length;
 } Snake;
 
-
 typedef struct {
     SDL_KeyCode inputs[MAX_INPUT_QUEUE_SIZE];
 } InputQueue;
@@ -195,7 +194,7 @@ Snake CreateSnake(V2f position, V2f direction, u64 length) {
 
 Snake GrowSnake() {
     Snake next = { 0 };
-    next.length = snake.length + 4;
+    next.length = snake.length + 1;
     next.positions = malloc(sizeof(V2f) * next.length);
     assert(next.positions);
     next.directions = malloc(sizeof(V2f) * next.length);
@@ -207,18 +206,14 @@ Snake GrowSnake() {
             next.positions[i] = snake.positions[i];
             next.directions[i] = snake.directions[i];
         }
-        else if (i == next.length - 1) {
-            next.positions[i] = next.positions[snake.length - 1];
-            next.directions[i] = next.directions[snake.length - 2];
-        }
         else {
             next.positions[i] = next.positions[snake.length - 1];
             next.directions[i] = next.directions[snake.length - 1];
         }
     }
     free(snake.positions);
-    snake.positions = nil;
     free(snake.directions);
+    snake.positions = nil;
     snake.directions = nil;
     return next;
 }
@@ -259,9 +254,8 @@ void DrawSnake() {
 
         }
         else if (i == snake.length - 1) {
-            direction = snake.directions[i - 1];
+            direction = snake.directions[i-1];
             sprite = SN_TAIL;
-
             if (direction.x == 1) {
                 angle = 90;
             }
@@ -274,7 +268,7 @@ void DrawSnake() {
             if (direction.y == 1) {
                 angle = 180;
             }
-
+            
         }
         else {
             V2f pa = snake.positions[i - 1];
