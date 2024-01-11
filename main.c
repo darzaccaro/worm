@@ -1,3 +1,8 @@
+// TODO: fix 1px sprite border disconnections
+// TODO: tail is sometimes mis-rotated when growing
+// TODO: audio
+// TODO: make sure spawned apples don't already collide with snake or other apples
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -23,9 +28,6 @@ typedef const char* cstring;
 #define global static
 #define persist static
 
-
-#define ARRAY_COUNT(array) (sizeof(array) / sizeof(array[0]))
-
 #include <SDL.h>
 #include <SDL_ttf.h>
 #include <SDL_image.h>
@@ -42,7 +44,9 @@ typedef const char* cstring;
 #define MAX_INPUT_QUEUE_SIZE 3
 #define MAX_SCORE_TEXT 128
 #define MS_PER_APPLE_SPAWN 4 * 1000
-// #define DEBUG_MODE true
+#define GROWTH_FACTOR 2
+#define DEBUG_MODE true
+#define MAX_SNAKE_LENGTH TILES_WIDE * TILES_TALL
 
 typedef struct {
     f32 x;
@@ -80,8 +84,8 @@ typedef struct {
 } Apple;
 
 typedef struct {
-    V2f* positions;
-    V2f* directions;
+    V2f positions[MAX_SNAKE_LENGTH];
+    V2f directions[MAX_SNAKE_LENGTH];
     u64 length;
 } Snake;
 
@@ -127,7 +131,7 @@ global bool ateLastFrame;
 global bool wasKeyPressed;
 global bool isRunning;
 
-SDL_KeyCode InputQueuePush(SDL_KeyCode key) {
+SDL_KeyCode PushInput(SDL_KeyCode key) {
     for (u64 i = 0; i < MAX_INPUT_QUEUE_SIZE; i++) {
         if (inputs[i] == 0) {
             inputs[i] = key;
@@ -136,7 +140,7 @@ SDL_KeyCode InputQueuePush(SDL_KeyCode key) {
     }
 }
 
-SDL_KeyCode InputQueuePop() {
+SDL_KeyCode PopInput() {
     SDL_KeyCode key = inputs[0];
     for (u64 i = 0; i < MAX_INPUT_QUEUE_SIZE; i++) {
         if (i == MAX_INPUT_QUEUE_SIZE - 1) {
@@ -177,10 +181,7 @@ void UpdateScoreText() {
 
 Snake CreateSnake(V2f position, V2f direction, u64 length) {
     Snake snake = { 0 };
-    snake.positions = malloc(sizeof(V2f) * length);
-    assert(snake.positions);
-    snake.directions = malloc(sizeof(V2f) * length);
-    assert(snake.directions);
+    assert(length <= MAX_SNAKE_LENGTH);
     snake.length = length;
     snake.directions[0] = direction;
     snake.positions[0] = position;
@@ -194,12 +195,8 @@ Snake CreateSnake(V2f position, V2f direction, u64 length) {
 
 Snake GrowSnake() {
     Snake next = { 0 };
-    next.length = snake.length + 1;
-    next.positions = malloc(sizeof(V2f) * next.length);
-    assert(next.positions);
-    next.directions = malloc(sizeof(V2f) * next.length);
-    assert(next.directions);
-
+    next.length = snake.length + GROWTH_FACTOR;
+    assert(next.length <= MAX_SNAKE_LENGTH);
     
     for (u64 i = 0; i < next.length; i++) {
         if (i < snake.length) {
@@ -211,10 +208,6 @@ Snake GrowSnake() {
             next.directions[i] = next.directions[snake.length - 1];
         }
     }
-    free(snake.positions);
-    free(snake.directions);
-    snake.positions = nil;
-    snake.directions = nil;
     return next;
 }
 
@@ -320,7 +313,7 @@ void DrawSnake() {
 }
 
 void SpawnApple() {
-    for (u64 i = 0; i < ARRAY_COUNT(apples); i++) {
+    for (u64 i = 0; i < MAX_APPLES; i++) {
         if (apples[i].isActive) continue;
         V2f pos = (V2f){
             .x = rand() % TILES_WIDE,
@@ -336,7 +329,7 @@ void SpawnApple() {
 
 void DrawApples() {
     SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
-    for (u64 i = 0; i < ARRAY_COUNT(apples); i++) {
+    for (u64 i = 0; i < MAX_APPLES; i++) {
         if (!apples[i].isActive) continue;
         DrawSprite(SN_APPLE, apples[i].position.x, apples[i].position.y, 0);
     }
@@ -377,7 +370,7 @@ void GameModeStart() {
 
 void GameModePlay() {
     if (SDL_GetTicks() - updateTime >= MS_PER_UPDATE) {
-        SDL_KeyCode key = InputQueuePop();
+        SDL_KeyCode key = PopInput();
         V2f direction = snake.directions[0];
         if (key == SDLK_LEFT) {
             direction = (V2f){ -1, 0 };
@@ -437,7 +430,6 @@ void GameModePlay() {
 
     DrawApples();
     DrawSnake(snake);
-
     {
         const char* text = scoreText;
         i32 textWidth, textHeight;
@@ -445,6 +437,7 @@ void GameModePlay() {
         DrawText(text, 10, 10, textWidth, textHeight);
     }
 }
+
 void GameModeGameOver() {
     {
         const char* text = "Game Over";
@@ -546,7 +539,7 @@ EVENT_LOOP:
                 case SDLK_LEFT: {
                     if (!event.key.repeat && lastKey != SDLK_RIGHT) {
                         lastKey = SDLK_LEFT;
-                        InputQueuePush(event.key.keysym.sym);
+                        PushInput(event.key.keysym.sym);
                         wasKeyPressed = true;
                     }
                     break;
@@ -554,7 +547,7 @@ EVENT_LOOP:
                 case SDLK_RIGHT: {
                     if (!event.key.repeat && lastKey != SDLK_LEFT) {
                         lastKey = SDLK_RIGHT;
-                        InputQueuePush(event.key.keysym.sym);
+                        PushInput(event.key.keysym.sym);
                         wasKeyPressed = true;
                     }
                     break;
@@ -562,7 +555,7 @@ EVENT_LOOP:
                 case SDLK_UP: {
                     if (!event.key.repeat && lastKey != SDLK_DOWN) {
                         lastKey = SDLK_UP;
-                        InputQueuePush(event.key.keysym.sym);
+                        PushInput(event.key.keysym.sym);
                         wasKeyPressed = true;
                     }
                     break;
@@ -570,7 +563,7 @@ EVENT_LOOP:
                 case SDLK_DOWN: {
                     if (!event.key.repeat && lastKey != SDLK_UP) {
                         lastKey = SDLK_DOWN;
-                        InputQueuePush(event.key.keysym.sym);
+                        PushInput(event.key.keysym.sym);
                         wasKeyPressed = true;
                     }
                     break;
