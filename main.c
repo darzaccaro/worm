@@ -1,7 +1,10 @@
 // TODO: fix 1px sprite border disconnections
-// TODO: tail is sometimes mis-rotated when growing
 // TODO: audio
 // TODO: make sure spawned apples don't already collide with snake or other apples
+// TODO: store high score in file system
+// TODO: settings menu + store settings in file system
+// TODO: animate apples
+// TODO: fade in menus
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -33,18 +36,18 @@ typedef const char* cstring;
 #include <SDL_image.h>
 
 #define TILE_SIZE     64
-#define TILES_WIDE    16
-#define TILES_TALL    9
+#define TILES_WIDE    26
+#define TILES_TALL    19
 #define WINDOW_WIDTH  TILES_WIDE * TILE_SIZE
 #define WINDOW_HEIGHT TILES_TALL * TILE_SIZE
 #define FRAMES_PER_SECOND 60
 #define MS_PER_FRAME ((1.f/60.f) * 1000.f)
-#define MS_PER_UPDATE MS_PER_FRAME * 8.f
+#define MS_PER_UPDATE MS_PER_FRAME * 10.f
 #define MAX_APPLES 16
 #define MAX_INPUT_QUEUE_SIZE 2
 #define MAX_SCORE_TEXT 128
 #define MS_PER_APPLE_SPAWN 4 * 1000
-#define GROWTH_FACTOR 2
+#define GROWTH_FACTOR 4
 // #define DEBUG_MODE true
 #define MAX_SNAKE_LENGTH TILES_WIDE * TILES_TALL
 
@@ -130,6 +133,7 @@ global u64 prevScore;
 global bool ateLastFrame;
 global bool wasKeyPressed;
 global bool isRunning;
+global u64 framesToGrow;
 
 SDL_KeyCode PushInput(SDL_KeyCode key) {
     for (u64 i = 0; i < MAX_INPUT_QUEUE_SIZE; i++) {
@@ -194,7 +198,6 @@ Snake CreateSnake(V2f position, V2f direction, u64 length) {
 }
 
 
-// TODO grow only one segment at a time while isGrowing
 Snake GrowSnake() {
     Snake next = { 0 };
     next.length = snake.length + 1;
@@ -388,8 +391,12 @@ void GameModePlay() {
         }
 
         if (ateLastFrame) {
-            snake = GrowSnake();
+            framesToGrow = GROWTH_FACTOR;
             ateLastFrame = false;
+        }
+        if (framesToGrow > 0) {
+            snake = GrowSnake();
+            framesToGrow--;
         }
         UpdateSnake(direction);
         // handle boundary collisions
