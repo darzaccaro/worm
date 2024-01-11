@@ -39,13 +39,13 @@ typedef const char* cstring;
 #define WINDOW_HEIGHT TILES_TALL * TILE_SIZE
 #define FRAMES_PER_SECOND 60
 #define MS_PER_FRAME ((1.f/60.f) * 1000.f)
-#define MS_PER_UPDATE MS_PER_FRAME * 5.f
+#define MS_PER_UPDATE MS_PER_FRAME * 8.f
 #define MAX_APPLES 16
-#define MAX_INPUT_QUEUE_SIZE 3
+#define MAX_INPUT_QUEUE_SIZE 2
 #define MAX_SCORE_TEXT 128
 #define MS_PER_APPLE_SPAWN 4 * 1000
 #define GROWTH_FACTOR 2
-#define DEBUG_MODE true
+// #define DEBUG_MODE true
 #define MAX_SNAKE_LENGTH TILES_WIDE * TILES_TALL
 
 typedef struct {
@@ -193,9 +193,11 @@ Snake CreateSnake(V2f position, V2f direction, u64 length) {
     return snake;
 }
 
+
+// TODO grow only one segment at a time while isGrowing
 Snake GrowSnake() {
     Snake next = { 0 };
-    next.length = snake.length + GROWTH_FACTOR;
+    next.length = snake.length + 1;
     assert(next.length <= MAX_SNAKE_LENGTH);
     
     for (u64 i = 0; i < next.length; i++) {
