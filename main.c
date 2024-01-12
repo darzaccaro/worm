@@ -1,4 +1,4 @@
-// TODO: fix 1px sprite border disconnections
+// TODO: fix 1px sprite border disconnections (redo graphics in aseprite 8-bit scaled up)
 // TODO: audio
 // TODO: make sure spawned apples don't already collide with snake or other apples
 // TODO: store high score in file system
@@ -31,23 +31,60 @@ typedef const char* cstring;
 #define global static
 #define persist static
 
+typedef struct {
+    u8* data;
+    u64 size;
+} File;
+
+File ReadEntireFile(cstring path) {
+    File result = {0};
+    FILE* f = nil;
+    fopen_s(&f, path, "rb");
+    assert(f);
+
+    // Determine the file size
+    fseek(f, 0, SEEK_END);
+    result.size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+
+    // Allocate memory to store the file contents
+    result.data = malloc(result.size);
+    assert(result.data);
+
+    // Read the entire file into the allocated memory
+    fread(result.data, 1, result.size, f);
+
+    // Close the file
+    fclose(f);
+
+    return result;
+}
+
+void FreeFile(File* file) {
+    assert(file->data);
+    free(file->data);
+    file->data = nil;
+    file->size = 0;
+}
+
+
 #include <SDL.h>
 #include <SDL_ttf.h>
 #include <SDL_image.h>
 
-#define TILE_SIZE     64
-#define TILES_WIDE    26
-#define TILES_TALL    19
+#define TILE_SIZE     32
+#define TILES_WIDE    1920 / TILE_SIZE
+#define TILES_TALL    1080 / TILE_SIZE
 #define WINDOW_WIDTH  TILES_WIDE * TILE_SIZE
 #define WINDOW_HEIGHT TILES_TALL * TILE_SIZE
 #define FRAMES_PER_SECOND 60
 #define MS_PER_FRAME ((1.f/60.f) * 1000.f)
-#define MS_PER_UPDATE MS_PER_FRAME * 10.f
+#define MS_PER_UPDATE MS_PER_FRAME * 4.f
 #define MAX_APPLES 16
 #define MAX_INPUT_QUEUE_SIZE 2
 #define MAX_SCORE_TEXT 128
 #define MS_PER_APPLE_SPAWN 4 * 1000
-#define GROWTH_FACTOR 4
+#define GROWTH_FACTOR 2
 // #define DEBUG_MODE true
 #define MAX_SNAKE_LENGTH TILES_WIDE * TILES_TALL
 
@@ -134,6 +171,7 @@ global bool ateLastFrame;
 global bool wasKeyPressed;
 global bool isRunning;
 global u64 framesToGrow;
+global u64 highScore;
 
 SDL_KeyCode PushInput(SDL_KeyCode key) {
     for (u64 i = 0; i < MAX_INPUT_QUEUE_SIZE; i++) {
@@ -391,7 +429,7 @@ void GameModePlay() {
         }
 
         if (ateLastFrame) {
-            framesToGrow = GROWTH_FACTOR;
+            framesToGrow = snake.length * GROWTH_FACTOR;
             ateLastFrame = false;
         }
         if (framesToGrow > 0) {
@@ -513,6 +551,7 @@ PLATFORM_INIT:
     SDL_RenderSetScale(renderer, scaleX, scaleY);
 
 GAME_INIT:
+    ReadEntireFile("data.txt");
     UpdateScoreText();
 
     snake = CreateSnake((V2f) { 4, 2 }, (V2f) { 1, 0 }, 4);
