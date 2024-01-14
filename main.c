@@ -80,6 +80,7 @@ global u64 framesToGrow;
 
 typedef enum {
     SFX_STARTUP,
+    SFX_PRESS,
     SFX_EAT1,
     SFX_EAT2,
     SFX_EAT3,
@@ -513,6 +514,8 @@ PLATFORM_INIT:
     assert(soundMap[SFX_DIE]);
     soundMap[SFX_GAMEOVER] = Mix_LoadWAV("assets/audio/sfx/gameover.wav");
     assert(soundMap[SFX_GAMEOVER]);
+    soundMap[SFX_PRESS] = Mix_LoadWAV("assets/audio/sfx/press.wav");
+    assert(soundMap[SFX_GAMEOVER]);
     soundMap[SFX_EAT1] = Mix_LoadWAV("assets/audio/sfx/eat1.wav");
     assert(soundMap[SFX_EAT1]);
     soundMap[SFX_EAT2] = Mix_LoadWAV("assets/audio/sfx/eat2.wav");
@@ -576,6 +579,7 @@ EVENT_LOOP:
                         lastKey = SDLK_LEFT;
                         PushInput(event.key.keysym.sym);
                         wasKeyPressed = true;
+                        PlaySFX(SFX_PRESS);
                     }
                     break;
                 }
@@ -584,6 +588,7 @@ EVENT_LOOP:
                         lastKey = SDLK_RIGHT;
                         PushInput(event.key.keysym.sym);
                         wasKeyPressed = true;
+                        PlaySFX(SFX_PRESS);
                     }
                     break;
                 }
@@ -592,6 +597,7 @@ EVENT_LOOP:
                         lastKey = SDLK_UP;
                         PushInput(event.key.keysym.sym);
                         wasKeyPressed = true;
+                        PlaySFX(SFX_PRESS);
                     }
                     break;
                 }
@@ -600,6 +606,7 @@ EVENT_LOOP:
                         lastKey = SDLK_DOWN;
                         PushInput(event.key.keysym.sym);
                         wasKeyPressed = true;
+                        PlaySFX(SFX_PRESS);
                     }
                     break;
                 }
