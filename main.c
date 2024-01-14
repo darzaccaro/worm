@@ -302,6 +302,7 @@ void SpawnApple() {
         apples[i].isActive = true;
         break;
     }
+    free(validPositions);
 }
 
 void DrawApples() {
