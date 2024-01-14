@@ -1,12 +1,12 @@
 // TODO: fix 1px sprite border disconnections (redo graphics in aseprite 8-bit scaled up)
 // TODO: audio
-// TODO: make sure spawned apples don't already collide with snake or other apples
 
 #include "prelude.h"
 
 #include <SDL.h>
 #include <SDL_ttf.h>
 #include <SDL_image.h>
+#include <SDL_mixer.h>
 
 #define TILE_SIZE 64
 #define TILES_WIDE 1920 / TILE_SIZE / 2
@@ -77,6 +77,27 @@ global bool ateLastFrame;
 global bool wasKeyPressed;
 global bool isRunning;
 global u64 framesToGrow;
+
+typedef enum {
+    SFX_STARTUP,
+    SFX_EAT1,
+    SFX_EAT2,
+    SFX_EAT3,
+    SFX_EAT4,
+    SFX_EAT5,
+    SFX_EAT6,
+    SFX_EAT7,
+    SFX_DIE,
+    SFX_GAMEOVER,
+    SFX_COUNT,
+} SFX;
+
+global Mix_Chunk* soundMap[SFX_COUNT] = {nil};
+
+void PlaySFX(SFX sfx) {
+    assert(soundMap[sfx]);
+    Mix_PlayChannel(-1, soundMap[sfx], 0);
+}
 
 SDL_KeyCode PushInput(SDL_KeyCode key) {
     for (u64 i = 0; i < MAX_INPUT_QUEUE_SIZE; i++) {
@@ -150,8 +171,7 @@ Snake GrowSnake() {
         if (i < snake.length) {
             next.positions[i] = snake.positions[i];
             next.directions[i] = snake.directions[i];
-        }
-        else {
+        } else {
             next.positions[i] = next.positions[snake.length - 1];
             next.directions[i] = next.directions[snake.length - 1];
         }
@@ -374,6 +394,8 @@ void GameModePlay() {
         // handle boundary collisions
         if (snake.positions[0].x < 0 || snake.positions[0].x >= TILES_WIDE || snake.positions[0].y < 0 || snake.positions[0].y >= TILES_TALL) {
             gameMode = GM_GAME_OVER;
+            PlaySFX(SFX_DIE);
+            PlaySFX(SFX_GAMEOVER);
             return;
         }
         // handle self collisions
@@ -382,6 +404,8 @@ void GameModePlay() {
             V2f body = snake.positions[i];
             if (V2fEqV2f(head, body)) {
                 gameMode = GM_GAME_OVER;
+                PlaySFX(SFX_DIE);
+                PlaySFX(SFX_GAMEOVER);
                 return;
             }
         }
@@ -393,6 +417,8 @@ void GameModePlay() {
                 score += 100;
                 apples[i].isActive = false;
                 ateLastFrame = true;
+                i32 sfx = SFX_EAT1 + rand() % 6;
+                PlaySFX(sfx);
             }
         }
 
@@ -434,11 +460,13 @@ void GameModeGameOver() {
     }
 }
 
+
+
 int main(int argc, char* args[]) {
 PLATFORM_INIT:
     srand((u32)time(nil));
 
-    if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+    if (SDL_Init(SDL_INIT_EVERYTHING) < 0) {
         assert(false);
     }
     
@@ -449,7 +477,11 @@ PLATFORM_INIT:
     if (IMG_Init(IMG_INIT_PNG) == 0) {
         assert(false);
     }
-
+        
+    if (Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 2048) < 0) {
+        assert(false);
+    }
+    
     SDL_Window* window = SDL_CreateWindow("Snake", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_SHOWN);
     assert(window);
     
@@ -475,6 +507,28 @@ PLATFORM_INIT:
         SDL_FreeSurface(surface);
     }
 
+    soundMap[SFX_STARTUP] = Mix_LoadWAV("assets/audio/sfx/startup.wav");
+    assert(soundMap[SFX_STARTUP]);
+    soundMap[SFX_DIE] = Mix_LoadWAV("assets/audio/sfx/die.wav");
+    assert(soundMap[SFX_DIE]);
+    soundMap[SFX_GAMEOVER] = Mix_LoadWAV("assets/audio/sfx/gameover.wav");
+    assert(soundMap[SFX_GAMEOVER]);
+    soundMap[SFX_EAT1] = Mix_LoadWAV("assets/audio/sfx/eat1.wav");
+    assert(soundMap[SFX_EAT1]);
+    soundMap[SFX_EAT2] = Mix_LoadWAV("assets/audio/sfx/eat2.wav");
+    assert(soundMap[SFX_EAT2]);
+    soundMap[SFX_EAT3] = Mix_LoadWAV("assets/audio/sfx/eat3.wav");
+    assert(soundMap[SFX_EAT3]);
+    soundMap[SFX_EAT4] = Mix_LoadWAV("assets/audio/sfx/eat4.wav");
+    assert(soundMap[SFX_EAT4]);
+    soundMap[SFX_EAT5] = Mix_LoadWAV("assets/audio/sfx/eat5.wav");
+    assert(soundMap[SFX_EAT5]);
+    soundMap[SFX_EAT6] = Mix_LoadWAV("assets/audio/sfx/eat6.wav");
+    assert(soundMap[SFX_EAT6]);
+    soundMap[SFX_EAT7] = Mix_LoadWAV("assets/audio/sfx/eat7.wav");
+    assert(soundMap[SFX_EAT7]);
+
+
     i32 windowWidth, windowHeight, rendererWidth, rendererHeight;
     SDL_GetWindowSize(window, &windowWidth, &windowHeight);
     SDL_GetRendererOutputSize(renderer, &rendererWidth, &rendererHeight);
@@ -497,7 +551,7 @@ GAME_INIT:
     ateLastFrame = false;
     wasKeyPressed = false;
     SDL_KeyCode lastKey = nil;
-
+    PlaySFX(SFX_STARTUP);
 EVENT_LOOP:
     while (isRunning) {
         SDL_Event event;
@@ -571,7 +625,6 @@ EVENT_LOOP:
         SDL_SetRenderDrawColor(renderer, 25, 25, 25, 255);
         for (i32 y = 0; y < TILES_TALL; y++) {
             SDL_RenderDrawLine(renderer, 0, y * TILE_SIZE, TILES_WIDE * TILE_SIZE, y * TILE_SIZE);
-
             for (i32 x = 0; x < TILES_WIDE; x++) {
                 SDL_RenderDrawLine(renderer, x * TILE_SIZE, 0, x * TILE_SIZE, TILES_TALL * TILE_SIZE);
             }
