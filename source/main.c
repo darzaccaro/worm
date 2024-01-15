@@ -40,13 +40,13 @@ void DrawSprite(SpriteName sprite, u64 x, u64 y, f64 angle) {
     i32 sy = (sprite / tilesWide);
     i32 sx = sprite % tilesWide;
 
-    SDL_Rect source = (SDL_Rect){
+    SDL_Rect source = (SDL_Rect) {
         .x = sx * spriteSheet.tileSize,
         .y = sy * spriteSheet.tileSize,
         .w = spriteSheet.tileSize,
         .h = spriteSheet.tileSize,
     };
-    SDL_Rect destination = (SDL_Rect){
+    SDL_Rect destination = (SDL_Rect) {
         .x = x * TILE_SIZE,
         .y = y * TILE_SIZE,
         .w = TILE_SIZE,
@@ -156,8 +156,7 @@ void DrawWorm() {
                     angle = 90;
                 }
                 sprite = SN_BODY_STRAIGHT;
-            } else if (
-              V2fEqV2f(diffA, (V2f) { 1, 0 }) && V2fEqV2f(diffC, (V2f) { 0, 1 })
+            } else if (V2fEqV2f(diffA, (V2f) { 1, 0 }) && V2fEqV2f(diffC, (V2f) { 0, 1 })
                 || V2fEqV2f(diffA, (V2f) { 0, 1 }) && V2fEqV2f(diffC, (V2f) { 1, 0 })
                 ) {
                 angle = 180;
@@ -196,7 +195,7 @@ void SpawnApple() {
     for (u64 y = 0; y < TILES_TALL; y++) {
         for (u64 x = 0; x < TILES_WIDE; x++) {
             bool isValid = true;
-            V2f position = (V2f){x, y};
+            V2f position = (V2f) {x, y};
             for (u64 a = 0; a < MAX_APPLES; a++) {
                 if (apples[a].isActive) {
                     if (V2fEqV2f(apples[a].position, position)) {
@@ -244,7 +243,7 @@ void DrawText(const char* text, f32 x, f32 y, f32 w, f32 h) {
     SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
     assert(texture);
     SDL_FreeSurface(surface);
-    SDL_Rect textRect = (SDL_Rect){
+    SDL_Rect textRect = (SDL_Rect) {
         .x = x,
         .y = y,
         .w = w,
@@ -281,16 +280,16 @@ void GameModePlay() {
         SDL_KeyCode key = PopInput();
         V2f direction = worm.directions[0];
         if (key == SDLK_LEFT) {
-            direction = (V2f){ -1, 0 };
+            direction = (V2f) { -1, 0 };
         }
         if (key == SDLK_RIGHT) {
-            direction = (V2f){ 1, 0 };
+            direction = (V2f) { 1, 0 };
         }
         if (key == SDLK_UP) {
-            direction = (V2f){ 0, -1 };
+            direction = (V2f) { 0, -1 };
         }
         if (key == SDLK_DOWN) {
-            direction = (V2f){ 0, 1 };
+            direction = (V2f) { 0, 1 };
         }
 
         if (ateLastFrame) {
@@ -412,7 +411,7 @@ PLATFORM_INIT:
         SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
         assert(texture);
 
-        spriteSheet = (SpriteSheet){
+        spriteSheet = (SpriteSheet) {
             .texture = texture,
             .width = surface->w,
             .height = surface->h,
@@ -427,7 +426,7 @@ PLATFORM_INIT:
         assert(surface);
         SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
         assert(texture);
-        titleImage = (Image){
+        titleImage = (Image) {
             .texture = texture, 
             .width = surface->w, 
             .height = surface->h,
