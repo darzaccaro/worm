@@ -187,12 +187,10 @@ Worm GrowWorm() {
 
 
 void UpdateWorm(V2f direction) {
-    // body
     for (u64 i = worm.length - 1; i > 0; i--) {
         worm.positions[i] = worm.positions[i - 1];
         worm.directions[i] = worm.directions[i - 1];
     }
-    // head
     worm.directions[0] = direction;
     worm.positions[0] = V2fAddV2f(worm.positions[0], worm.directions[0]);
 }
