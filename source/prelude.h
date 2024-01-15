@@ -21,9 +21,9 @@ typedef double f64;
 
 typedef const char* cstring;
 
-#define nil 0
-#define global static
-#define persist static
+#define nil      0
+#define global   static
+#define persist  static
 #define internal static
 
 typedef struct {

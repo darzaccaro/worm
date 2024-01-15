@@ -27,5 +27,14 @@
     <ClInclude Include="source\prelude.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="source\config.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="source\globals.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="source\types.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

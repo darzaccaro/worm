@@ -1,0 +1,21 @@
+#pragma once
+global SDL_Renderer* renderer;
+global SpriteSheet spriteSheet;
+global TTF_Font* font;
+global Apple apples[MAX_APPLES];
+global Worm worm;
+global SDL_KeyCode inputs[MAX_INPUT_QUEUE_SIZE];
+global char* scoreText[MAX_SCORE_TEXT];
+global GameMode gameMode;
+global u32 startTime;
+global u32 updateTime;
+global u32 appleTime;
+global u64 score;
+global u64 prevScore;
+global bool ateLastFrame;
+global bool wasKeyPressed;
+global bool isRunning;
+global u64 framesToGrow;
+global u64 timeOfDeath;
+global Image titleImage;
+global Mix_Chunk* soundMap[SFX_COUNT] = {nil};

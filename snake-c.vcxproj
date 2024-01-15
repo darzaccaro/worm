@@ -154,7 +154,10 @@
     <None Include="README.md" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="source\config.h" />
+    <ClInclude Include="source\globals.h" />
     <ClInclude Include="source\prelude.h" />
+    <ClInclude Include="source\types.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

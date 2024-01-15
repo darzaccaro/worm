@@ -1,105 +1,14 @@
-#include "prelude.h"
-
 #include <SDL.h>
 #include <SDL_ttf.h>
 #include <SDL_image.h>
 #include <SDL_mixer.h>
 
-#define TILE_SIZE 64
-#define TILES_WIDE 1920 / TILE_SIZE / 2
-#define TILES_TALL TILES_WIDE
-#define WINDOW_WIDTH  TILES_WIDE * TILE_SIZE
-#define WINDOW_HEIGHT TILES_TALL * TILE_SIZE
-#define FRAMES_PER_SECOND 60
-#define MS_PER_FRAME ((1.f/60.f) * 1000.f)
-#define MS_PER_UPDATE MS_PER_FRAME * 8.f
-#define MAX_APPLES 16
-#define MAX_INPUT_QUEUE_SIZE 2
-#define MAX_SCORE_TEXT 128
-#define MS_PER_APPLE_SPAWN 4 * 1000
-#define GROWTH_FACTOR 2
-#define MAX_WORM_LENGTH TILES_WIDE * TILES_TALL
-#define RESPAWN_TIME 1000
+#include "prelude.h"
+#include "config.h"
+#include "types.h"
+#include "globals.h"
 
-typedef struct {
-    V2f position;
-    bool isActive;
-} Apple;
-
-typedef struct {
-    V2f positions[MAX_WORM_LENGTH];
-    V2f directions[MAX_WORM_LENGTH];
-    u64 length;
-} Worm;
-
-typedef struct {
-    SDL_KeyCode inputs[MAX_INPUT_QUEUE_SIZE];
-} InputQueue;
-
-typedef enum {
-    SN_TRANSPARENT,
-    SN_HEAD,
-    SN_BODY_STRAIGHT,
-    SN_BODY_CURVED,
-    SN_TAIL,
-    SN_APPLE,
-    SN_APPLE_EATEN,
-} SpriteName;
-
-typedef struct {
-    SDL_Texture* texture;
-    i32 width, height;
-    i32 tileSize;
-} SpriteSheet;
-
-typedef struct {
-    SDL_Texture* texture;
-    i32 width, height;
-} Image;
-
-typedef enum {
-    GM_START,
-    GM_PLAY,
-    GM_GAME_OVER,
-} GameMode;
-
-typedef enum {
-    SFX_STARTUP,
-    SFX_PRESS,
-    SFX_EAT1,
-    SFX_EAT2,
-    SFX_EAT3,
-    SFX_EAT4,
-    SFX_EAT5,
-    SFX_EAT6,
-    SFX_EAT7,
-    SFX_DIE,
-    SFX_GAMEOVER,
-    SFX_COUNT,
-} SFX;
-
-global SDL_Renderer* renderer;
-global SpriteSheet spriteSheet;
-global TTF_Font* font;
-global Apple apples[MAX_APPLES];
-global Worm worm;
-global SDL_KeyCode inputs[MAX_INPUT_QUEUE_SIZE];
-global char* scoreText[MAX_SCORE_TEXT];
-global GameMode gameMode;
-global u32 startTime;
-global u32 updateTime;
-global u32 appleTime;
-global u64 score;
-global u64 prevScore;
-global bool ateLastFrame;
-global bool wasKeyPressed;
-global bool isRunning;
-global u64 framesToGrow;
-global u64 timeOfDeath;
-global Image titleImage;
-global Mix_Chunk* soundMap[SFX_COUNT] = {nil};
-
-void PlaySFX(SFX sfx) {
+void PlaySound(SFX sfx) {
     assert(soundMap[sfx]);
     Mix_PlayChannel(-1, soundMap[sfx], 0);
 }
@@ -399,8 +308,8 @@ void GameModePlay() {
         if (worm.positions[0].x < 0 || worm.positions[0].x >= TILES_WIDE || worm.positions[0].y < 0 || worm.positions[0].y >= TILES_TALL) {
             timeOfDeath = SDL_GetTicks();
             gameMode = GM_GAME_OVER;
-            PlaySFX(SFX_DIE);
-            PlaySFX(SFX_GAMEOVER);
+            PlaySound(SFX_DIE);
+            PlaySound(SFX_GAMEOVER);
             return;
         }
         // handle self collisions
@@ -410,8 +319,8 @@ void GameModePlay() {
             if (V2fEqV2f(head, body)) {
                 timeOfDeath = SDL_GetTicks();
                 gameMode = GM_GAME_OVER;
-                PlaySFX(SFX_DIE);
-                PlaySFX(SFX_GAMEOVER);
+                PlaySound(SFX_DIE);
+                PlaySound(SFX_GAMEOVER);
                 return;
             }
         }
@@ -424,7 +333,7 @@ void GameModePlay() {
                 apples[i].isActive = false;
                 ateLastFrame = true;
                 i32 sfx = SFX_EAT1 + rand() % 6;
-                PlaySFX(sfx);
+                PlaySound(sfx);
             }
         }
 
@@ -572,7 +481,7 @@ GAME_INIT:
     ateLastFrame = false;
     wasKeyPressed = false;
     SDL_KeyCode lastKey = nil;
-    PlaySFX(SFX_STARTUP);
+    PlaySound(SFX_STARTUP);
 
 EVENT_LOOP:
     while (isRunning) {
@@ -601,7 +510,7 @@ EVENT_LOOP:
                         lastKey = SDLK_LEFT;
                         PushInput(event.key.keysym.sym);
                         wasKeyPressed = true;
-                        PlaySFX(SFX_PRESS);
+                        PlaySound(SFX_PRESS);
                     }
                     break;
                 }
@@ -610,7 +519,7 @@ EVENT_LOOP:
                         lastKey = SDLK_RIGHT;
                         PushInput(event.key.keysym.sym);
                         wasKeyPressed = true;
-                        PlaySFX(SFX_PRESS);
+                        PlaySound(SFX_PRESS);
                     }
                     break;
                 }
@@ -619,7 +528,7 @@ EVENT_LOOP:
                         lastKey = SDLK_UP;
                         PushInput(event.key.keysym.sym);
                         wasKeyPressed = true;
-                        PlaySFX(SFX_PRESS);
+                        PlaySound(SFX_PRESS);
                     }
                     break;
                 }
@@ -628,7 +537,7 @@ EVENT_LOOP:
                         lastKey = SDLK_DOWN;
                         PushInput(event.key.keysym.sym);
                         wasKeyPressed = true;
-                        PlaySFX(SFX_PRESS);
+                        PlaySound(SFX_PRESS);
                     }
                     break;
                 }
