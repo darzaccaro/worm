@@ -5,10 +5,7 @@ The graphics were made in Figma. The audio was made by recording an analog synth
 This was made as a warmup project for the NYC Handmade Meetup. 
 Finishing is its own skill, so I wanted to finish a small project before moving onto something more ambitious.
 
-![title card](./captures/title-screenshot.png)
-
-![gameplay gif](./captures/capture.gif)
-
+![gameplay gif](./captures/capture2.gif)
 
 # Dependencies
 - SDL2
