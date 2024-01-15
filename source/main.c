@@ -1,6 +1,3 @@
-// TODO: fix 1px sprite border disconnections (redo graphics in aseprite 8-bit scaled up)
-// TODO: audio
-
 #include "prelude.h"
 
 #include <SDL.h>
@@ -10,7 +7,7 @@
 
 #define TILE_SIZE 64
 #define TILES_WIDE 1920 / TILE_SIZE / 2
-#define TILES_TALL 1080 / TILE_SIZE / 2
+#define TILES_TALL TILES_WIDE
 #define WINDOW_WIDTH  TILES_WIDE * TILE_SIZE
 #define WINDOW_HEIGHT TILES_TALL * TILE_SIZE
 #define FRAMES_PER_SECOND 60
@@ -21,8 +18,8 @@
 #define MAX_SCORE_TEXT 128
 #define MS_PER_APPLE_SPAWN 4 * 1000
 #define GROWTH_FACTOR 2
-//#define DEBUG_MODE true
-#define MAX_SNAKE_LENGTH TILES_WIDE * TILES_TALL
+#define MAX_WORM_LENGTH TILES_WIDE * TILES_TALL
+#define RESPAWN_TIME 1000
 
 typedef struct {
     V2f position;
@@ -30,10 +27,10 @@ typedef struct {
 } Apple;
 
 typedef struct {
-    V2f positions[MAX_SNAKE_LENGTH];
-    V2f directions[MAX_SNAKE_LENGTH];
+    V2f positions[MAX_WORM_LENGTH];
+    V2f directions[MAX_WORM_LENGTH];
     u64 length;
-} Snake;
+} Worm;
 
 typedef struct {
     SDL_KeyCode inputs[MAX_INPUT_QUEUE_SIZE];
@@ -46,6 +43,7 @@ typedef enum {
     SN_BODY_CURVED,
     SN_TAIL,
     SN_APPLE,
+    SN_APPLE_EATEN,
 } SpriteName;
 
 typedef struct {
@@ -64,7 +62,7 @@ global SDL_Renderer* renderer;
 global SpriteSheet spriteSheet;
 global TTF_Font* font;
 global Apple apples[MAX_APPLES];
-global Snake snake;
+global Worm worm;
 global SDL_KeyCode inputs[MAX_INPUT_QUEUE_SIZE];
 global char* scoreText[MAX_SCORE_TEXT];
 global GameMode gameMode;
@@ -77,6 +75,7 @@ global bool ateLastFrame;
 global bool wasKeyPressed;
 global bool isRunning;
 global u64 framesToGrow;
+global u64 timeOfDeath;
 
 typedef enum {
     SFX_STARTUP,
@@ -148,57 +147,57 @@ void UpdateScoreText() {
     sprintf_s(scoreText, MAX_SCORE_TEXT, "Score: %llu", score);
 }
 
-Snake CreateSnake(V2f position, V2f direction, u64 length) {
-    Snake snake = { 0 };
-    assert(length <= MAX_SNAKE_LENGTH);
-    snake.length = length;
-    snake.directions[0] = direction;
-    snake.positions[0] = position;
+Worm CreateWorm(V2f position, V2f direction, u64 length) {
+    Worm worm = { 0 };
+    assert(length <= MAX_WORM_LENGTH);
+    worm.length = length;
+    worm.directions[0] = direction;
+    worm.positions[0] = position;
     for (i32 i = 1; i < length; i++) {
         V2f offset = V2fMul(direction, -i);
-        snake.positions[i] = V2fAddV2f(position, offset);
-        snake.directions[i] = direction;
+        worm.positions[i] = V2fAddV2f(position, offset);
+        worm.directions[i] = direction;
     }
-    return snake;
+    return worm;
 }
 
 
-Snake GrowSnake() {
-    Snake next = { 0 };
-    next.length = snake.length + 1;
-    assert(next.length <= MAX_SNAKE_LENGTH);
+Worm GrowWorm() {
+    Worm next = { 0 };
+    next.length = worm.length + 1;
+    assert(next.length <= MAX_WORM_LENGTH);
     
     for (u64 i = 0; i < next.length; i++) {
-        if (i < snake.length) {
-            next.positions[i] = snake.positions[i];
-            next.directions[i] = snake.directions[i];
+        if (i < worm.length) {
+            next.positions[i] = worm.positions[i];
+            next.directions[i] = worm.directions[i];
         } else {
-            next.positions[i] = next.positions[snake.length - 1];
-            next.directions[i] = next.directions[snake.length - 1];
+            next.positions[i] = next.positions[worm.length - 1];
+            next.directions[i] = next.directions[worm.length - 1];
         }
     }
     return next;
 }
 
 
-void UpdateSnake(V2f direction) {
+void UpdateWorm(V2f direction) {
     // body
-    for (u64 i = snake.length - 1; i > 0; i--) {
-        snake.positions[i] = snake.positions[i - 1];
-        snake.directions[i] = snake.directions[i - 1];
+    for (u64 i = worm.length - 1; i > 0; i--) {
+        worm.positions[i] = worm.positions[i - 1];
+        worm.directions[i] = worm.directions[i - 1];
     }
     // head
-    snake.directions[0] = direction;
-    snake.positions[0] = V2fAddV2f(snake.positions[0], snake.directions[0]);
+    worm.directions[0] = direction;
+    worm.positions[0] = V2fAddV2f(worm.positions[0], worm.directions[0]);
 }
 
-void DrawSnake() {
-    for (u64 i = 0; i < snake.length; i++) {
+void DrawWorm() {
+    for (u64 i = 0; i < worm.length; i++) {
         SpriteName sprite = 0;
         f64 angle = 0;
         V2f direction = { 0 };
         if (i == 0) {
-            direction = snake.directions[i];
+            direction = worm.directions[i];
             sprite = SN_HEAD;
 
             if (direction.x == 1) {
@@ -215,8 +214,8 @@ void DrawSnake() {
             }
 
         }
-        else if (i == snake.length - 1) {
-            direction = snake.directions[i-1];
+        else if (i == worm.length - 1) {
+            direction = worm.directions[i-1];
             sprite = SN_TAIL;
             if (direction.x == 1) {
                 angle = 90;
@@ -233,9 +232,9 @@ void DrawSnake() {
             
         }
         else {
-            V2f pa = snake.positions[i - 1];
-            V2f pb = snake.positions[i];
-            V2f pc = snake.positions[i + 1];
+            V2f pa = worm.positions[i - 1];
+            V2f pb = worm.positions[i];
+            V2f pc = worm.positions[i + 1];
             V2f diffA = V2fNormalize(V2fSubV2f(pb, pa));
             V2f diffC = V2fNormalize(V2fSubV2f(pb, pc));
             if (V2fEqV2f(diffA, (V2f) { 1, 0 }) && V2fEqV2f(diffC, (V2f) { -1, 0 })
@@ -277,7 +276,7 @@ void DrawSnake() {
             }
             
         }
-        DrawSprite(sprite, snake.positions[i].x, snake.positions[i].y, angle);
+        DrawSprite(sprite, worm.positions[i].x, worm.positions[i].y, angle);
     }
 }
 
@@ -286,7 +285,7 @@ void SpawnApple() {
     for (i32 i = 0; i < MAX_APPLES; i++) {
         if (apples[i].isActive) appleCount++;
     }
-    u64 validPositionsCount = TILES_TALL * TILES_WIDE - snake.length - appleCount;
+    u64 validPositionsCount = TILES_TALL * TILES_WIDE - worm.length - appleCount;
     V2f* validPositions = malloc(sizeof(V2f) * validPositionsCount);
     u64 validPositionsFilled = 0;
     for (u64 y = 0; y < TILES_TALL; y++) {
@@ -302,8 +301,8 @@ void SpawnApple() {
                 }
             }
             if (!isValid) continue;
-            for (u64 s = 0; s < snake.length; s++) {
-                if (V2fEqV2f(snake.positions[s], position)) {
+            for (u64 s = 0; s < worm.length; s++) {
+                if (V2fEqV2f(worm.positions[s], position)) {
                     isValid = false;
                     break;
                 }
@@ -353,7 +352,7 @@ void DrawText(const char* text, f32 x, f32 y, f32 w, f32 h) {
 
 void GameModeStart() {
     {
-        const char* text = "Snake";
+        const char* text = "Worm";
         i32 textWidth, textHeight;
         TTF_SizeText(font, text, &textWidth, &textHeight);
         DrawText(text, WINDOW_WIDTH / 2 - textWidth / 2, WINDOW_HEIGHT / 4 - textHeight - 2, textWidth, textHeight);
@@ -369,7 +368,7 @@ void GameModeStart() {
 void GameModePlay() {
     if (SDL_GetTicks() - updateTime >= MS_PER_UPDATE) {
         SDL_KeyCode key = PopInput();
-        V2f direction = snake.directions[0];
+        V2f direction = worm.directions[0];
         if (key == SDLK_LEFT) {
             direction = (V2f){ -1, 0 };
         }
@@ -388,22 +387,24 @@ void GameModePlay() {
             ateLastFrame = false;
         }
         if (framesToGrow > 0) {
-            snake = GrowSnake();
+            worm = GrowWorm();
             framesToGrow--;
         }
-        UpdateSnake(direction);
+        UpdateWorm(direction);
         // handle boundary collisions
-        if (snake.positions[0].x < 0 || snake.positions[0].x >= TILES_WIDE || snake.positions[0].y < 0 || snake.positions[0].y >= TILES_TALL) {
+        if (worm.positions[0].x < 0 || worm.positions[0].x >= TILES_WIDE || worm.positions[0].y < 0 || worm.positions[0].y >= TILES_TALL) {
+            timeOfDeath = SDL_GetTicks();
             gameMode = GM_GAME_OVER;
             PlaySFX(SFX_DIE);
             PlaySFX(SFX_GAMEOVER);
             return;
         }
         // handle self collisions
-        for (u64 i = 1; i < snake.length; i++) {
-            V2f head = snake.positions[0];
-            V2f body = snake.positions[i];
+        for (u64 i = 1; i < worm.length; i++) {
+            V2f head = worm.positions[0];
+            V2f body = worm.positions[i];
             if (V2fEqV2f(head, body)) {
+                timeOfDeath = SDL_GetTicks();
                 gameMode = GM_GAME_OVER;
                 PlaySFX(SFX_DIE);
                 PlaySFX(SFX_GAMEOVER);
@@ -414,7 +415,7 @@ void GameModePlay() {
 
         for (u64 i = 0; i < MAX_APPLES; i++) {
             if (!apples[i].isActive) continue;
-            if (V2fEqV2f(apples[i].position, snake.positions[0])) {
+            if (V2fEqV2f(apples[i].position, worm.positions[0])) {
                 score += 100;
                 apples[i].isActive = false;
                 ateLastFrame = true;
@@ -437,7 +438,7 @@ void GameModePlay() {
     }
 
     DrawApples();
-    DrawSnake(snake);
+    DrawWorm(worm);
     {
         const char* text = scoreText;
         i32 textWidth, textHeight;
@@ -483,13 +484,13 @@ PLATFORM_INIT:
         assert(false);
     }
     
-    SDL_Window* window = SDL_CreateWindow("Snake", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_SHOWN);
+    SDL_Window* window = SDL_CreateWindow("Worm", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_SHOWN);
     assert(window);
     
     renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
     assert(renderer);
     
-    font = TTF_OpenFont("assets/fonts/Roboto-Regular.ttf", 48);
+    font = TTF_OpenFont("assets/fonts/roboto.ttf", 48);
     assert(font);
 
     {
@@ -544,7 +545,7 @@ PLATFORM_INIT:
 GAME_INIT:
     UpdateScoreText();
 
-    snake = CreateSnake((V2f) { 4, 2 }, (V2f) { 1, 0 }, 4);
+    worm = CreateWorm((V2f) { 4, 2 }, (V2f) { 1, 0 }, 4);
 
     isRunning = true;
     startTime = SDL_GetTicks();
@@ -565,9 +566,12 @@ EVENT_LOOP:
             }
             if (event.type == SDL_KEYDOWN) {
                 if (gameMode == GM_START || gameMode == GM_GAME_OVER) {
-                    score = 0;
-                    gameMode = GM_PLAY;
-                    goto GAME_INIT;
+                    if (SDL_GetTicks() > timeOfDeath + RESPAWN_TIME) {
+                      score = 0;
+                      timeOfDeath = 0;
+                      gameMode = GM_PLAY;
+                      goto GAME_INIT;
+                    }
                 }
                 switch (event.key.keysym.sym) {
                 case SDLK_ESCAPE: {
@@ -615,20 +619,13 @@ EVENT_LOOP:
         }
 
     UPDATE_AND_RENDER:
-#ifdef DEBUG_MODE
-        gameMode = GM_PLAY;
-        if (!wasKeyPressed) {
-            goto EVENT_LOOP;
-        }
-#else
         if (SDL_GetTicks() - startTime < MS_PER_FRAME) {
             goto EVENT_LOOP;
         }
-#endif
-        // clear to black
+
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         SDL_RenderClear(renderer);
-        // draw grid
+
         SDL_SetRenderDrawColor(renderer, 25, 25, 25, 255);
         for (i32 y = 0; y < TILES_TALL; y++) {
             SDL_RenderDrawLine(renderer, 0, y * TILE_SIZE, TILES_WIDE * TILE_SIZE, y * TILE_SIZE);
@@ -636,7 +633,6 @@ EVENT_LOOP:
                 SDL_RenderDrawLine(renderer, x * TILE_SIZE, 0, x * TILE_SIZE, TILES_TALL * TILE_SIZE);
             }
         }
-
         switch (gameMode) {
         case GM_START: {
             GameModeStart();
