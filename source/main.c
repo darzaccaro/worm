@@ -52,6 +52,11 @@ typedef struct {
     i32 tileSize;
 } SpriteSheet;
 
+typedef struct {
+    SDL_Texture* texture;
+    i32 width, height;
+} Image;
+
 typedef enum {
     GM_START,
     GM_PLAY,
@@ -76,6 +81,7 @@ global bool wasKeyPressed;
 global bool isRunning;
 global u64 framesToGrow;
 global u64 timeOfDeath;
+global Image titleImage;
 
 typedef enum {
     SFX_STARTUP,
@@ -350,18 +356,24 @@ void DrawText(const char* text, f32 x, f32 y, f32 w, f32 h) {
     }
 }
 
+void DrawImage(Image image, f32 x, f32 y) {
+    SDL_Rect rect = (SDL_Rect) {
+        .x = x,
+        .y = y,
+        .w = image.width,
+        .h = image.height,
+    };
+    SDL_RenderCopy(renderer, image.texture, nil, &rect);
+}
+
 void GameModeStart() {
-    {
-        const char* text = "Worm";
-        i32 textWidth, textHeight;
-        TTF_SizeText(font, text, &textWidth, &textHeight);
-        DrawText(text, WINDOW_WIDTH / 2 - textWidth / 2, WINDOW_HEIGHT / 4 - textHeight - 2, textWidth, textHeight);
-    }
+    DrawImage(titleImage, WINDOW_WIDTH / 2 - titleImage.width / 2,
+              WINDOW_HEIGHT / 2 - titleImage.height - 2);
     {
         const char* text = "Press any key to play";
         i32 textWidth, textHeight;
         TTF_SizeText(font, text, &textWidth, &textHeight);
-        DrawText(text, WINDOW_WIDTH / 2 - textWidth / 2, WINDOW_HEIGHT / 2 - textHeight - 2, textWidth, textHeight);
+        DrawText(text, WINDOW_WIDTH / 2 - textWidth / 2, WINDOW_HEIGHT / 4 - textHeight - 2, textWidth, textHeight);
     }
 }
 
@@ -506,6 +518,19 @@ PLATFORM_INIT:
             .tileSize = TILE_SIZE,
         };
 
+        SDL_FreeSurface(surface);
+    }
+
+    {
+        SDL_Surface* surface = IMG_Load("assets/images/title.png");
+        assert(surface);
+        SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
+        assert(texture);
+        titleImage = (Image){
+            .texture = texture, 
+            .width = surface->w, 
+            .height = surface->h,
+        };
         SDL_FreeSurface(surface);
     }
 
