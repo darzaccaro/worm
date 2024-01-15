@@ -63,6 +63,21 @@ typedef enum {
     GM_GAME_OVER,
 } GameMode;
 
+typedef enum {
+    SFX_STARTUP,
+    SFX_PRESS,
+    SFX_EAT1,
+    SFX_EAT2,
+    SFX_EAT3,
+    SFX_EAT4,
+    SFX_EAT5,
+    SFX_EAT6,
+    SFX_EAT7,
+    SFX_DIE,
+    SFX_GAMEOVER,
+    SFX_COUNT,
+} SFX;
+
 global SDL_Renderer* renderer;
 global SpriteSheet spriteSheet;
 global TTF_Font* font;
@@ -82,22 +97,6 @@ global bool isRunning;
 global u64 framesToGrow;
 global u64 timeOfDeath;
 global Image titleImage;
-
-typedef enum {
-    SFX_STARTUP,
-    SFX_PRESS,
-    SFX_EAT1,
-    SFX_EAT2,
-    SFX_EAT3,
-    SFX_EAT4,
-    SFX_EAT5,
-    SFX_EAT6,
-    SFX_EAT7,
-    SFX_DIE,
-    SFX_GAMEOVER,
-    SFX_COUNT,
-} SFX;
-
 global Mix_Chunk* soundMap[SFX_COUNT] = {nil};
 
 void PlaySFX(SFX sfx) {
@@ -119,8 +118,7 @@ SDL_KeyCode PopInput() {
     for (u64 i = 0; i < MAX_INPUT_QUEUE_SIZE; i++) {
         if (i == MAX_INPUT_QUEUE_SIZE - 1) {
             inputs[i] = 0;
-        }
-        else {
+        } else {
             inputs[i] = inputs[i + 1];
         }
     }
@@ -217,8 +215,7 @@ void DrawWorm() {
                 angle = 180;
             }
 
-        }
-        else if (i == worm.length - 1) {
+        } else if (i == worm.length - 1) {
             direction = worm.directions[i-1];
             sprite = SN_TAIL;
             if (direction.x == 1) {
@@ -234,8 +231,7 @@ void DrawWorm() {
                 angle = 180;
             }
             
-        }
-        else {
+        } else {
             V2f pa = worm.positions[i - 1];
             V2f pb = worm.positions[i];
             V2f pc = worm.positions[i + 1];
@@ -257,25 +253,21 @@ void DrawWorm() {
                 ) {
                 angle = 180;
                 sprite = SN_BODY_CURVED;
-            }
-            else if (V2fEqV2f(diffA, (V2f) { 0, -1 }) && V2fEqV2f(diffC, (V2f) { 1, 0 })
+            } else if (V2fEqV2f(diffA, (V2f) { 0, -1 }) && V2fEqV2f(diffC, (V2f) { 1, 0 })
                 || V2fEqV2f(diffA, (V2f) { 1, 0 }) && V2fEqV2f(diffC, (V2f) { 0, -1 })
                 ) {
                 angle = 90;
                 sprite = SN_BODY_CURVED;
-            }
-            else if (V2fEqV2f(diffA, (V2f) { 0, 1 }) && V2fEqV2f(diffC, (V2f) { -1, 0 })
+            } else if (V2fEqV2f(diffA, (V2f) { 0, 1 }) && V2fEqV2f(diffC, (V2f) { -1, 0 })
                 || V2fEqV2f(diffA, (V2f) { -1, 0 }) && V2fEqV2f(diffC, (V2f) { 0, 1 })
                 ) {
                 angle = -90;
-                    sprite = SN_BODY_CURVED;
-            }
-            else if (V2fEqV2f(diffA, (V2f) { -1, 0 }) && V2fEqV2f(diffC, (V2f) { 0, -1 })
+                sprite = SN_BODY_CURVED;
+            } else if (V2fEqV2f(diffA, (V2f) { -1, 0 }) && V2fEqV2f(diffC, (V2f) { 0, -1 })
                 || V2fEqV2f(diffA, (V2f) { 0, -1 }) && V2fEqV2f(diffC, (V2f) { -1, 0 })) {
                 angle = 0;
-                    sprite = SN_BODY_CURVED;
-            }
-            else {
+                sprite = SN_BODY_CURVED;
+            } else {
                 sprite = SN_TRANSPARENT;
             }
             
@@ -400,7 +392,9 @@ void GameModePlay() {
             worm = GrowWorm();
             framesToGrow--;
         }
+
         UpdateWorm(direction);
+
         // handle boundary collisions
         if (worm.positions[0].x < 0 || worm.positions[0].x >= TILES_WIDE || worm.positions[0].y < 0 || worm.positions[0].y >= TILES_TALL) {
             timeOfDeath = SDL_GetTicks();
@@ -579,6 +573,7 @@ GAME_INIT:
     wasKeyPressed = false;
     SDL_KeyCode lastKey = nil;
     PlaySFX(SFX_STARTUP);
+
 EVENT_LOOP:
     while (isRunning) {
         SDL_Event event;
